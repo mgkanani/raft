@@ -16,8 +16,10 @@ type Raft interface {
 }
 
 type RaftType struct {
-	leader int
+	Leader int
 }
+
+var raftType RaftType
 
 type Reply struct {
 	Term   int
@@ -72,9 +74,13 @@ func (serv Server) Vote() int {
 	return serv.ServState.vote_for
 }
 
-func (serv Server) isLeader() bool {
+func (raft RaftType) isLeader() bool {
+	if raft.Leader>0{
+		return true;
+/*	}
 	if serv.ServState.my_state == 2 {
 		return true
+*/
 	} else {
 		return false
 	}
@@ -94,7 +100,8 @@ func (serv Server) Start() {
 		if serv.ServState.my_state == 0 {
 			fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid)
 			//follower
-			duration := 2*time.Second + time.Duration(rand.Intn(151))*time.Millisecond
+			//duration := 2*time.Second + time.Duration(rand.Intn(151))*time.Millisecond
+			duration := time.Duration((rand.Intn(50)+serv.ServerInfo.MyPid*50)*12)*time.Millisecond
 			timer := time.NewTimer(duration)
 
 		FOLLOW:
@@ -112,12 +119,12 @@ func (serv Server) Start() {
 				}
 				fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid, " Request is:-.", req)
 
-				if enve.Pid == serv.Vote() {
+				if enve.Pid == serv.Vote() && raftType.isLeader(){
 					fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid, " heartbeat received for")
 				} else {
 					fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid, " Request Recieved.", req)
 					var reply *Reply
-					if req.Term >= serv.Term() && (serv.Vote() == 0 || serv.Vote() == serv.ServerInfo.Pid()) {
+					if (req.Term >= serv.Term() && serv.Vote() == 0 )|| serv.Vote() == serv.ServerInfo.Pid() {
 						// getting higher term and it has not voted before.
 						reply = &Reply{Term: req.Term, Result: true}
 						t_data, err := json.Marshal(reply)
@@ -199,19 +206,21 @@ func (serv Server) Start() {
 					if err != nil {
 						fmt.Println("In Candidate, Unknown thing happened", enve.Msg.(string))
 					} else {
-						fmt.Println("Candidate : Serverid-", serv.ServerInfo.MyPid, "Reply Recvd:-", reply, enve, enve.Msg.(string))
+						fmt.Println("Candidate : Serverid-", serv.ServerInfo.MyPid,"Leader is:-" ,raftType.Leader,"Reply Recvd:-", reply, enve, enve.Msg.(string))
 						if reply.Result {
 							serv.ServState.followers[enve.Pid] = enve.Pid
 							fmt.Println("Candidate : Serverid-", serv.ServerInfo.MyPid, "Confirmation Recvd:-", reply, enve, "total count:-", len(serv.ServState.followers))
 							n:=int(len(serv.ServerInfo.PeerIds)/2);
 							if n<len(serv.ServState.followers){
+								fmt.Println("Candidate : Serverid-", serv.ServerInfo.MyPid, "Leader Declared:-",serv.ServerInfo.Pid())
 								//become leader.
+								raftType.Leader=serv.ServerInfo.Pid()
 								serv.ServState.UpdateState(2)//become follower.
 								break CAND;
 							}
 						} else {
 							delete(serv.ServState.followers, enve.Pid)
-							fmt.Println("Candidate : Serverid-", serv.ServerInfo.MyPid, "Confirmation Recvd:-", reply, enve, "total count:-", len(serv.ServState.followers))
+							fmt.Println("Candidate : Serverid-", serv.ServerInfo.MyPid, "Rejection Recvd:-", reply, enve, "total count:-", len(serv.ServState.followers))
 						}
 					}
 				} else {
@@ -287,6 +296,8 @@ func (serv Server) Start() {
 			timer.Stop()
 		} else {
 			//leader
+
+			time.Sleep(15*time.Second)
 
 			duration := 1*time.Second + time.Duration(rand.Intn(51))*time.Millisecond//heartbeat timer.
 			timer := time.NewTimer(duration)
@@ -380,6 +391,7 @@ func (serv Server) Start() {
 					serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: pid , MsgId: 0, Msg: string(data)}
 				}
 				time.After(1000)
+
 			}
 			timer.Stop()
 		}
