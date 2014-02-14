@@ -223,15 +223,6 @@ func (serv Server) Start() {
 				}
 
 			case <-time.After(2000+time.Duration(rand.Intn(151)*20) * time.Millisecond):
-
-/*
-				serv.UpdateVote_For(serv.ServerInfo.MyPid)      //giving him self vote.
-				ok := serv.UpdateState(1) // update state to be a candidate.
-				msg := "hi"
-				serv.UpdateTerm(serv.Term() + 1)    //increment term by one.
-				// braodcast the requestFor vote.
-				serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: int64(serv.Term()), Msg: string(msg)} 
-*/
                                 serv.ServState.UpdateVote_For(serv.ServerInfo.MyPid)      //giving him self vote.
                                  ok := serv.ServState.UpdateState(1) // update state to be a candidate.
                                         serv.ServState.UpdateTerm(serv.Term() + 1)    //increment term by one.
