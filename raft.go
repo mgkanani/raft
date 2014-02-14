@@ -101,6 +101,8 @@ func (serv Server) Start() {
 			select { //used for selecting channel for given event.
 			//case enve := <-ch:
 			case enve := <-serv.ServerInfo.Inbox():
+			if enve.MsgId==0{
+				//Request Rcvd.
 				timer.Reset(duration)
 				//fmt.Println("Follower : Serverid-",serv.ServerInfo.MyPid," Msg Rcvd:-",enve)
 				var req Request
@@ -143,6 +145,9 @@ func (serv Server) Start() {
 						time.After(1000)
 					}
 				}
+			}else{//reply recvd. drop it.
+
+			}
 
 			//case <-time.After(2000+time.Duration(rand.Intn(151)*20) * time.Millisecond):
 			//case <-time.After(2000000000):
@@ -177,10 +182,7 @@ func (serv Server) Start() {
 				}
 			}
 			timer.Stop()
-		} else if serv.ServState.my_state == 2 {
-			//leader
-
-		} else {
+		} else if serv.ServState.my_state == 1 {
 			//candidate
 			duration := 1*time.Second + time.Duration(rand.Intn(151))*time.Millisecond
 			timer := time.NewTimer(duration)
@@ -201,10 +203,15 @@ func (serv Server) Start() {
 						if reply.Result {
 							serv.ServState.followers[enve.Pid] = enve.Pid
 							fmt.Println("Candidate : Serverid-", serv.ServerInfo.MyPid, "Confirmation Recvd:-", reply, enve, "total count:-", len(serv.ServState.followers))
-							//fmt.Println("For",serv.ServerInfo.MyPid,"Confirmation received from",enve.Pid,"total count:-",len(serv.ServState.followers))
-						}else{
-                                                        delete(serv.ServState.followers,enve.Pid)
-                                                        fmt.Println("Candidate : Serverid-", serv.ServerInfo.MyPid, "Confirmation Recvd:-", reply, enve, "total count:-", len(serv.ServState.followers))
+							n:=int(len(serv.ServerInfo.PeerIds)/2);
+							if n<len(serv.ServState.followers){
+								//become leader.
+								serv.ServState.UpdateState(2)//become follower.
+								break CAND;
+							}
+						} else {
+							delete(serv.ServState.followers, enve.Pid)
+							fmt.Println("Candidate : Serverid-", serv.ServerInfo.MyPid, "Confirmation Recvd:-", reply, enve, "total count:-", len(serv.ServState.followers))
 						}
 					}
 				} else {
@@ -223,10 +230,11 @@ func (serv Server) Start() {
 							fmt.Println("In candidate receiving msgs: Marshaling error: ", reply)
 						}
 						serv.ServState.UpdateVote_For(req.CandidateId)
+						serv.ServState.UpdateState(0)//become follower.
+						serv.ServState.followers=make(map[int]int)//clear followers list.
 						envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: string(data)}
 						serv.ServerInfo.Outbox() <- &envelope
 						fmt.Println("from:-", serv.ServerInfo.MyPid, "to", enve.Pid, envelope)
-						serv.ServState.UpdateVote_For(enve.Pid)
 						timer.Stop()
 						time.After(1000)
 						break CAND
@@ -236,11 +244,25 @@ func (serv Server) Start() {
 						if err != nil {
 							fmt.Println("In candidate receiving msgs: Marshaling error: ", reply)
 						}
-						serv.ServState.UpdateVote_For(req.CandidateId)
 						envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: string(data)}
 						serv.ServerInfo.Outbox() <- &envelope
 						fmt.Println("from:-", serv.ServerInfo.MyPid, "to", enve.Pid, envelope)
-						time.After(1000)
+						time.After(20)//wait for 20 nanosec.
+						//now send request message and becareful about not to update term.
+
+		                                ok := serv.ServState.UpdateState(1)                  // update state to be a candidate.
+ 		                                x := &Request{Term: serv.Term(), CandidateId: serv.ServerInfo.Pid()}
+                		                data, err = json.Marshal(x)
+                                		fmt.Println("data is:-", x)
+		                                if err != nil {
+                		                        fmt.Println("Marshaling error", x)
+                                		}
+		                                // braodcast the requestFor vote.
+                		                serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: string(data)}
+		                                if !ok {
+                		                        println("error in updating state")
+                                		}
+                                		time.After(1000)
 					}
 
 				}
@@ -261,6 +283,103 @@ func (serv Server) Start() {
 				if !ok {
 					println("error in updating state")
 				}
+			}
+			timer.Stop()
+		} else {
+			//leader
+
+			duration := 1*time.Second + time.Duration(rand.Intn(51))*time.Millisecond//heartbeat timer.
+			timer := time.NewTimer(duration)
+
+			fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid)
+		LEADER:
+			select { //used for selecting channel for given event.
+			case enve := <-serv.ServerInfo.Inbox():
+				timer.Reset(duration)
+				if enve.MsgId == 1 { //reply recvd
+
+					var reply Reply
+					err := json.Unmarshal([]byte(enve.Msg.(string)), &reply)
+					if err != nil {
+						fmt.Println("In Leader, Unknown thing happened", enve.Msg.(string))
+						return
+					} else {
+						fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid, "Reply Recvd:-", reply, enve, enve.Msg.(string))
+						if reply.Result {//confirmation received
+							serv.ServState.followers[enve.Pid] = enve.Pid
+							fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid, "Confirmation Recvd:-", reply, enve, "total count:-", len(serv.ServState.followers))
+							//fmt.Println("For",serv.ServerInfo.MyPid,"Confirmation received from",enve.Pid,"total count:-",len(serv.ServState.followers))
+						} else {
+							delete(serv.ServState.followers, enve.Pid)
+							fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid, "Confirmation Recvd:-", reply, enve, "total count:-", len(serv.ServState.followers))
+						}
+					}
+				} else {
+					// Request Rcvd.
+					var req Request
+					_ = json.Unmarshal([]byte(enve.Msg.(string)), &req) //decode message into Envelope object.
+					//request received.
+					fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid, "Request Recvd:-", req, enve)
+					var reply *Reply
+					if req.Term > serv.Term() {
+						// getting higher term and it has not voted before.
+						fmt.Println("For", serv.ServerInfo.MyPid, "higher term received from", enve.Pid)
+						reply = &Reply{Term: req.Term, Result: true}
+						data, err := json.Marshal(reply)
+						if err != nil {
+							fmt.Println("In Leader receiving msgs: Marshaling error: ", reply)
+						}
+						serv.ServState.UpdateVote_For(req.CandidateId)
+						serv.ServState.UpdateState(0)//become follower.
+						serv.ServState.followers=make(map[int]int)//clear followers list.
+						envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: string(data)}
+						serv.ServerInfo.Outbox() <- &envelope
+						fmt.Println("from:-", serv.ServerInfo.MyPid, "to", enve.Pid, envelope)
+						serv.ServState.UpdateVote_For(enve.Pid)
+						timer.Stop()
+						time.After(1000)
+						break LEADER
+					} else {
+						time.After(1000)
+                                                reply = &Reply{Term: req.Term, Result: false}
+                                                data, err := json.Marshal(reply)
+                                                if err != nil {
+                                                        fmt.Println("In Leader receiving msgs: Marshaling error: ", reply)
+                                                }
+                                                envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: string(data)}
+                                                serv.ServerInfo.Outbox() <- &envelope
+                                                fmt.Println("Leader:-", serv.ServerInfo.MyPid, "to", enve.Pid, envelope)
+                                                time.After(20)//wait for 20 nanosec.
+                                                //now send request message and becareful about not to update term.
+
+                                                x := &Request{Term: serv.Term(), CandidateId: serv.ServerInfo.Pid()}
+                                                data, err = json.Marshal(x)
+                                                fmt.Println("data is:-", x)
+                                                if err != nil {
+                                                        fmt.Println("Marshaling error", x)
+                                                }
+                                                // braodcast the requestFor vote.
+                                                serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: string(data)}
+					}
+
+				}
+
+			case <-timer.C:
+				//send heartbeat to all followers
+				//serv.ServState.UpdateVote_For(serv.ServerInfo.Pid()) //giving him self vote.
+				//ok := serv.ServState.UpdateState(2)                  // update state to be a candidate.
+				//serv.ServState.UpdateTerm(serv.Term() + 1)           //increment term by one.
+				x := &Request{Term: serv.Term(), CandidateId: serv.ServerInfo.Pid()}
+				data, err := json.Marshal(x)
+				fmt.Println("data is:-", x)
+				if err != nil {
+					fmt.Println("Marshaling error", x)
+				}
+				// braodcast the requestFor vote.
+				for _,pid:= range serv.ServState.followers{
+					serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: pid , MsgId: 0, Msg: string(data)}
+				}
+				time.After(1000)
 			}
 			timer.Stop()
 		}

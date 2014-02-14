@@ -78,6 +78,10 @@ now use:-```godoc math/rand ```
 
 [http://golang.org/pkg/time/#Timer.Stop]
 
+[http://stackoverflow.com/questions/13812121/how-to-clear-a-map-in-go]
+
+[http://stackoverflow.com/questions/1841443/iterating-over-all-the-keys-of-a-golang-map]
+
 #Mistakes(very silly but consumes much time) during coding which takes hours to find and resolve.
 
 Making Request and Reply's data as private and using marshal and Unmarshal function which returns null data.
