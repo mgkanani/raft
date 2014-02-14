@@ -94,7 +94,7 @@ func (serv Server) Start() {
 		if serv.ServState.my_state == 0 {
 			fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid)
 			//follower
-			duration := 1*time.Second + time.Duration(rand.Intn(151))*time.Millisecond
+			duration := 2*time.Second + time.Duration(rand.Intn(151))*time.Millisecond
 			timer := time.NewTimer(duration)
 
 		FOLLOW:
@@ -202,6 +202,9 @@ func (serv Server) Start() {
 							serv.ServState.followers[enve.Pid] = enve.Pid
 							fmt.Println("Candidate : Serverid-", serv.ServerInfo.MyPid, "Confirmation Recvd:-", reply, enve, "total count:-", len(serv.ServState.followers))
 							//fmt.Println("For",serv.ServerInfo.MyPid,"Confirmation received from",enve.Pid,"total count:-",len(serv.ServState.followers))
+						}else{
+                                                        delete(serv.ServState.followers,enve.Pid)
+                                                        fmt.Println("Candidate : Serverid-", serv.ServerInfo.MyPid, "Confirmation Recvd:-", reply, enve, "total count:-", len(serv.ServState.followers))
 						}
 					}
 				} else {
@@ -211,7 +214,7 @@ func (serv Server) Start() {
 					//request received.
 					fmt.Println("Candidate : Serverid-", serv.ServerInfo.MyPid, "Request Recvd:-", req, enve)
 					var reply *Reply
-					if req.Term >= serv.Term() && serv.Vote() == serv.ServerInfo.Pid() {
+					if req.Term > serv.Term() && serv.Vote() == serv.ServerInfo.Pid() {
 						// getting higher term and it has not voted before.
 						fmt.Println("For", serv.ServerInfo.MyPid, "higher term received from", enve.Pid)
 						reply = &Reply{Term: req.Term, Result: true}
@@ -243,7 +246,7 @@ func (serv Server) Start() {
 				}
 
 			case <-timer.C:
-				serv.ServState.UpdateVote_For(serv.ServerInfo.MyPid) //giving him self vote.
+				serv.ServState.UpdateVote_For(serv.ServerInfo.Pid()) //giving him self vote.
 				ok := serv.ServState.UpdateState(1)                  // update state to be a candidate.
 				serv.ServState.UpdateTerm(serv.Term() + 1)           //increment term by one.
 				x := &Request{Term: serv.Term(), CandidateId: serv.ServerInfo.Pid()}
