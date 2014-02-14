@@ -2,17 +2,10 @@ package raft
 
 import (
 		"encoding/json"
-	/*
-		zmq "github.com/pebbe/zmq4"*/
-	/*	"io/ioutil"
-		"os"
-		"strconv"*/
 	"fmt"
 	cluster "github.com/mgkanani/cluster"
 	rand "math/rand"
 	"time"
-
-//	"sync"
 )
 
 type Raft interface {
@@ -95,55 +88,53 @@ func (serv Server) Start() {
 	for {
 		//fmt.Println("For out side ",serv)
 		if serv.ServState.my_state == 0 {
-			fmt.Println("Server-",serv.ServerInfo.MyPid," In Follower.")
+			fmt.Println("Follower : Serverid-",serv.ServerInfo.MyPid)
 			//follower
 
-			//ch := make(chan *cluster.Envelope) //use for filtering messages that are coming from leader.
-			//go serv.Filter(ch);
 		FOLLOW:
 			select { //used for selecting channel for given event.
 			//case enve := <-ch:
 			case enve := <-serv.ServerInfo.Inbox():
+				//fmt.Println("Follower : Serverid-",serv.ServerInfo.MyPid," Msg Rcvd:-",enve)
 				var req Request;
 				err := json.Unmarshal([]byte(enve.Msg.(string)), &req) //decode message into Envelope object.
 		                if err != nil {                        //error into parsing/decoding
-                		        fmt.Println("In Candidate Unmarshaling error:-\t", err,enve)
+                		        fmt.Println("Follower: Unmarshaling error:-\t", err)
 		                }
-
-				//str := envelope.Msg.(string)
-				//fmt.Println("At:-", serv.ServerInfo.MyPid, "\tReceived from:-", enve.Pid, "\tterm is:-", enve.MsgId, enve)
-				fmt.Println("At:-", serv.ServerInfo.MyPid, "\tReceived from:-", enve.Pid, enve)
+				fmt.Println("Follower : Serverid-",serv.ServerInfo.MyPid," Request is:-.",req)
 
 				if enve.Pid == serv.Vote() {
-					fmt.Println("heartbeat received")
+					fmt.Println("Follower : Serverid-",serv.ServerInfo.MyPid," heartbeat received for")
 				} else {
+					fmt.Println("Follower : Serverid-",serv.ServerInfo.MyPid," Request Recieved.",req)
 					var reply *Reply
 					if req.term >= serv.Term() && (serv.Vote() == 0||serv.Vote() == serv.ServerInfo.Pid() ){ 
 						// getting higher term and it has not voted before.
 						reply = &Reply{term:req.term,result:true}
                                                 t_data, err := json.Marshal(*reply)
 						if err!=nil{
-	                                                fmt.Println("In candidate receiving msgs: Marshaling error: ",reply);
+	                                                fmt.Println("Follower:- getting higher term:- Marshaling error: ",err);
         	                                }
 						data:=string(t_data)
                                                 serv.UpdateVote_For(req.candidateId)
-                                                envelope:=cluster.Envelope{Pid: enve.Pid, Msg:&data} 
+                                                envelope:=cluster.Envelope{Pid: enve.Pid, Msg:data} 
                                                 serv.ServerInfo.Outbox() <- &envelope
-                                                fmt.Println("from:-", serv.ServerInfo.MyPid,"to",enve.Pid,envelope);
-					}else{
+                                                fmt.Println("Follower : Serverid-",serv.ServerInfo.MyPid,"reply sent on higher term recpt",req,reply,envelope);
+						//err= json.Unmarshal(t_data, &reply)
+						//fmt.Println("UUUUUUUUUUUU",reply)
+					}else{//getting request for vote
 						reply = &Reply{term:req.term,result:false}
                                                 data, err := json.Marshal(*reply)
 						if err!=nil{
-	                                                fmt.Println("In candidate receiving msgs: Marshaling error: ",reply);
+	                                                fmt.Println("Follower:- getting request for vote:- Marshaling error: ",err);
         	                                }
                                                 serv.UpdateVote_For(req.candidateId)
                                                 envelope:=cluster.Envelope{Pid: enve.Pid, Msg:string(data)} 
                                                 serv.ServerInfo.Outbox() <- &envelope
-                                                fmt.Println("from:-", serv.ServerInfo.MyPid,"to",enve.Pid,envelope);
+                                                fmt.Println("Follower : Serverid-",serv.ServerInfo.MyPid,"reply sent on req for vote",req,reply,envelope);
 					}
 				}
 
-			//case <-time.After(time.Duration(150+rand.Intn(151)) * time.Millisecond):
 			case <-time.After(2000+time.Duration(rand.Intn(151)*20) * time.Millisecond):
 				println(serv.ServerInfo.MyPid,"No heartbeat has been received\n")
 				serv.UpdateVote_For(0) //leader may crashed.
@@ -154,22 +145,18 @@ func (serv Server) Start() {
 				//fmt.Println(" awaken")
 				if serv.Vote() == 0 {  //still no candidate exist.
 					serv.UpdateVote_For(serv.ServerInfo.MyPid)      //giving him self vote.
-					ok := serv.UpdateState(1) // update state to be a candidate.
+					_ = serv.UpdateState(1) // update state to be a candidate.
 					serv.UpdateTerm(serv.Term() + 1)    //increment term by one.
-					x:=&Request{term:serv.Term(),candidateId:serv.ServerInfo.Pid()}
-					t_data, err := json.Marshal(*x)
-					fmt.Println("data is:-",x);
+					req:=&Request{term:serv.Term(),candidateId:serv.ServerInfo.Pid()}
+					t_data, err := json.Marshal(*req)
 					if err!=nil{
-						fmt.Println("Marshaling error",x);
+                                                fmt.Println("Follower:- After Awaking :- Marshaling error: ",err);
 					}
 					data:=string(t_data)
 					// braodcast the requestFor vote.
-					envelope:=cluster.Envelope{Pid: cluster.BROADCAST, Msg:string(data)}
+					envelope:=cluster.Envelope{Pid: cluster.BROADCAST, Msg:data}
                                         serv.ServerInfo.Outbox() <- &envelope
-                                        fmt.Println("from:-", serv.ServerInfo.MyPid,"to",envelope.Pid,envelope);
-					if !ok {
-						println("error in updating state")
-					}
+                                        fmt.Println("Follower : Serverid-",serv.ServerInfo.MyPid,"After Awaking,req sent for vote",req,envelope);
 					break FOLLOW;
 				}
 			}
@@ -187,9 +174,6 @@ func (serv Server) Start() {
 
 			case enve := <-serv.ServerInfo.Inbox():
                            //     fmt.Println("Reply At:-", serv.ServerInfo.MyPid, "\tReceived from:-", enve.Pid, "\tterm is:-", enve.MsgId,enve.Msg == "confirm",enve)
-
-
-
                                 var req Request;
                                 err := json.Unmarshal([]byte(enve.Msg.(string)), &req) //decode message into Envelope object.
                                 if err != nil {                        //error into parsing/decoding
@@ -268,26 +252,3 @@ func (serv Server) Start() {
 
 }
 
-func (serv Server) Filter(enve chan *cluster.Envelope) {
-	//var mut sync.RWMutex
-	for {
-		if serv.ServState.my_state == 0 { //ensuring it is in follower state
-			//mut.Lock()
-			y := <-serv.ServerInfo.Inbox()
-			x := y
-			enve <- x
-			fmt.Println("In Filter:- :", x.Pid, serv.ServState.vote_for, x.Pid == 2, "\t", x)
-			/*		//if x.Pid==serv.vote_for {
-					if x.Pid==2 {
-					//heartbeat or message from leader recieved.
-					//fmt.Println("In Filter:- :",x.Pid,serv.vote_for,x.Pid==2,"\t",x)
-					enve<-x;
-					fmt.Println("In Filter:- :",x.Pid,serv.vote_for,x.Pid==2,"\t",x)
-					}
-			*/
-			//mut.Unlock()
-		} else {
-			break
-		}
-	}
-}
