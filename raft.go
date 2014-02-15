@@ -340,9 +340,6 @@ func (serv Server) Start(RType *RaftType) {
 			timer.Stop()
 		} else {
 			//leader
-			log.Println("Leader -", serv.ServerInfo.MyPid, " is going for sleep.")
-			time.Sleep(15 * time.Second)
-			log.Println("Leader -", serv.ServerInfo.MyPid, " has awaken from sleep.")
 
 			//duration := 1*time.Second + time.Duration(rand.Intn(51))*time.Millisecond//heartbeat timer.
 			duration := time.Duration(rand.Intn(51)) * time.Millisecond //heartbeat time-duration.
@@ -449,6 +446,10 @@ func (serv Server) Start(RType *RaftType) {
 				for _, pid := range serv.ServState.followers {
 					serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: pid, MsgId: 0, Msg: string(data)}
 				}
+
+				log.Println("Leader -", serv.ServerInfo.MyPid, " is going for sleep.")
+				time.Sleep(30 * time.Second)
+				log.Println("Leader -", serv.ServerInfo.MyPid, " has awaken from sleep.")
 				time.After(1000)
 
 			}

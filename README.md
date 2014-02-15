@@ -70,7 +70,7 @@ to find path of offline documentation:- ```godoc dfdsgdg ``` this package will n
 to find  available packages:- ```ls  /usr/lib/go/src/pkg``` , now observe packages and find approapriate pkg that is math/rand.
 now use:-```godoc math/rand ```
 
-[https://ramcloud.stanford.edu/wiki/download/attachments/11370504/raft.pdf](https://ramcloud.stanford.edu/wiki/download/attachments/11370504/raft.pdf) -- for reading raft paper as.
+[https://ramcloud.stanford.edu/wiki/download/attachments/11370504/raft.pdf]( -- for reading raft paper as).
 
 [http://stackoverflow.com/questions/8270816/converting-go-struct-to-json](http://stackoverflow.com/questions/8270816/converting-go-struct-to-json)
 
