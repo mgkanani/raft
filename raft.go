@@ -140,7 +140,7 @@ func (serv Server) Start(RType *RaftType) {
 							serv.ServState.UpdateVote_For(req.CandidateId)
 							envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: data}
 							serv.ServerInfo.Outbox() <- &envelope
-							log.Println("Higher Term:", req.Term, "Recvd for sid-", serv.ServerInfo.MyPid)
+							log.Println("Higher Term:", req.Term, "Recvd for Follower -", serv.ServerInfo.MyPid)
 							time.After(1000)
 							//err= json.Unmarshal(t_data, &reply)
 							//fmt.Println("UUUUUUUUUUUU",reply)
@@ -276,7 +276,7 @@ func (serv Server) Start(RType *RaftType) {
 						break CAND
 					} else if req.Term >= serv.Term() {
 						// getting higher term.
-						log.Println("Higher Term Recvd for", serv.ServerInfo.MyPid, "from", enve.Pid)
+						log.Println("Higher Term Recvd for Candidate ", serv.ServerInfo.MyPid, "from", enve.Pid)
 						reply = &Reply{Term: req.Term, Result: true}
 						data, err := json.Marshal(reply)
 						if err != nil {
@@ -392,7 +392,7 @@ func (serv Server) Start(RType *RaftType) {
 					if req.Term > serv.Term() {
 						// getting higher term and it has not voted before.
 						RType.Leader = 0 //reset leader.
-						log.Println("Leader(", serv.Term(), ") :", serv.ServerInfo.MyPid, "has received higher term", req.Term, "from", enve.Pid)
+						log.Println("Leader(with Term", serv.Term(), ") :", serv.ServerInfo.MyPid, "has received higher term", req.Term, "from", enve.Pid)
 						reply = &Reply{Term: req.Term, Result: true}
 						data, err := json.Marshal(reply)
 						if err != nil {
