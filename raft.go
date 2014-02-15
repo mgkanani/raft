@@ -219,9 +219,10 @@ func (serv Server) Start(RType *RaftType) {
 							if reply.Result {
 								//true reply recvd.
 								serv.ServState.followers[enve.Pid] = enve.Pid
-								log.Println("For Candidate : ", serv.ServerInfo.MyPid, "Vote Recvd from :-", enve.Pid, " total votes:-", (len(serv.ServState.followers) + 1))
-								n := int(len(serv.ServerInfo.PeerIds) / 2)
-								if n <= len(serv.ServState.followers) {
+								totalVotes:=(len(serv.ServState.followers) + 1)
+								log.Println("For Candidate : ", serv.ServerInfo.MyPid, "Vote Recvd from :-", enve.Pid, " total votes:-", totalVotes)
+								n := int((len(serv.ServerInfo.PeerIds) +1)/ 2)
+								if n < totalVotes {
 									//quorum.
 									log.Println("Leader Declared:-", serv.ServerInfo.Pid())
 									//become leader.
@@ -273,7 +274,7 @@ func (serv Server) Start(RType *RaftType) {
 						timer.Stop()
 						//time.After(1000)
 						break CAND
-					} else if req.Term > serv.Term() {
+					} else if req.Term >= serv.Term() {
 						// getting higher term.
 						log.Println("Higher Term Recvd for", serv.ServerInfo.MyPid, "from", enve.Pid)
 						reply = &Reply{Term: req.Term, Result: true}
@@ -366,8 +367,11 @@ func (serv Server) Start(RType *RaftType) {
 						} else {
 							log.Println("Leader :", serv.ServerInfo.MyPid, "has received rejection from", enve.Pid, "for term", reply.Term, "and total votes:-", (len(serv.ServState.followers) + 1))
 							delete(serv.ServState.followers, enve.Pid)
-							n := int(len(serv.ServerInfo.PeerIds) / 2)
-							if n >= len(serv.ServState.followers) {
+
+
+							totalVotes:=(len(serv.ServState.followers) + 1)
+                                                        n := int((len(serv.ServerInfo.PeerIds) +1)/ 2)
+							if n >= totalVotes {
 								RType.Leader = 0
 								timer.Stop()
 								serv.ServState.UpdateVote_For(0)
@@ -448,7 +452,7 @@ func (serv Server) Start(RType *RaftType) {
 				}
 
 				log.Println("Leader -", serv.ServerInfo.MyPid, " is going for sleep.")
-				time.Sleep(30 * time.Second)
+				time.Sleep(20 * time.Second)
 				log.Println("Leader -", serv.ServerInfo.MyPid, " has awaken from sleep.")
 				time.After(1000)
 
