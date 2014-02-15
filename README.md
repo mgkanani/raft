@@ -9,12 +9,19 @@ go get github.com/mgkanani/raft
 go install github.com/mgkanani/raft
 ```
 ## To run with default configuration:-
-(go to cluster directory i.e. github.com/mgkanani/raft and run below to see msgs' summary).
+
+Till now partial test file has been developed. It is not fully automated for testing so it requires user's involvement.
+(go to cluster directory i.e. github.com/mgkanani/raft and run below after some time use cntr+c to stop the execution and observe the log).
 ```
-go test
+go test 2>log_file_name
 ```
 
-#To customise parameters
+(to see which server had been declared as a Leader use)
+```
+cat log_file_name|grep Declared
+```
+
+
 ###Modify config.json
 
 To add more servers with different port and pids.
@@ -26,15 +33,22 @@ The order 1,4,3,2 will work perfectly.
 
 #Default configurations:-
 ```
-Total Servers :- 5
+Total Servers :- 8
 ipaddr:127.0.0.1 
-ports :-12345,12346,12347,12348,12349
+ports :-12345,12346,12347,12348,12349,... ,12352
 Pids:-1,2,3,4,5
 ```
 
 #Experiments:-
 ```
-see log file.
+see log files.
+
+log -> for 5 servers with 15sec sleep for leader after declared as a Leader.
+
+log_... -> name itself suggests the configuration parameters.
+
+Experiments are done with 8,9,5,and 7 servers with random and fix sleeping time after becoming a Leader. With these experiments it works correctly.
+
 
 ```
 
