@@ -21,7 +21,7 @@ To add more servers with different port and pids.
 Pids must be in strictly order means 1,2,3,4 but not 1,2,4,7.
 The order 1,4,3,2 will work perfectly.
 
-###Modifying cluster_test.go
+###Modifying raft_test.go
 
 
 #Default configurations:-
