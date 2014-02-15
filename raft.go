@@ -452,7 +452,8 @@ func (serv Server) Start(RType *RaftType) {
 				}
 
 				log.Println("Leader -", serv.ServerInfo.MyPid, " is going for sleep.")
-				time.Sleep(20 * time.Second)
+				//time.Sleep(20 * time.Second)
+				time.Sleep(time.Duration((rand.Intn(350)+serv.ServerInfo.MyPid*400))*time.Millisecond)//minimum will be 400ms.
 				log.Println("Leader -", serv.ServerInfo.MyPid, " has awaken from sleep.")
 				time.After(1000)
 
