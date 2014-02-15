@@ -1,15 +1,15 @@
-#cluster
-`cluster` is template for creating serverfarm. This is allowing to communicate in between them. One can either broadcast the message or send to individual server lying within `cluster`.
+#raft
+A `raft` cluster contains several servers which allows the system to tolerate  failure(for 5 servers, it will be 2). This template/pkg is implementing this algorithm. In this, one leader will be selected among the servers.
 
 
 #Usage
 ## To install
 ```
-go get github.com/mgkanani/cluster
-go install github.com/mgkanani/cluster
+go get github.com/mgkanani/raft
+go install github.com/mgkanani/raft
 ```
 ## To run with default configuration:-
-(go to cluster directory i.e. github.com/mgkanani/cluster and run below to see msgs' summary).
+(go to cluster directory i.e. github.com/mgkanani/raft and run below to see msgs' summary).
 ```
 go test
 ```
@@ -23,41 +23,18 @@ The order 1,4,3,2 will work perfectly.
 
 ###Modifying cluster_test.go
 
-for Testing update values of variables total_servers count , and total_msgs.
-
-for testing the msgs tranfer of size > 60000 bytes uncomment lines 48,57 and comment line 49.
 
 #Default configurations:-
 ```
-Total Servers :- 10
+Total Servers :- 5
 ipaddr:127.0.0.1 
-ports :-12345,12346,12347,12348 ... 12354
-Pids:-1,2,3,4 ... 10
-total_servers=10(linenum 18 in file cluster_test.go),
-total_msgs=300(linenum 19 in file cluster_test.go)
+ports :-12345,12346,12347,12348,12349
+Pids:-1,2,3,4,5
 ```
 
 #Experiments:-
 ```
-totalnumber of servers:-10
-total msgs each Server broadcasts :-300
-msg_size:-65K bytes
-
-```
-###output
-```
-total msgs received at PID - 1 :- 2700 	 sent:- 300
-total msgs received at PID - 2 :- 2700 	 sent:- 300
-total msgs received at PID - 3 :- 2700 	 sent:- 300
-total msgs received at PID - 4 :- 2700 	 sent:- 300
-total msgs received at PID - 5 :- 2700 	 sent:- 300
-total msgs received at PID - 6 :- 2700 	 sent:- 300
-total msgs received at PID - 7 :- 2700 	 sent:- 300
-total msgs received at PID - 8 :- 2700 	 sent:- 300
-total msgs received at PID - 9 :- 2700 	 sent:- 300
-total msgs received at PID - 10 :- 2700 	 sent:- 300
-PASS
-ok  	github.com/mgkanani/cluster	333.525s
+see log file.
 
 ```
 
