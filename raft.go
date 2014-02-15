@@ -219,9 +219,9 @@ func (serv Server) Start(RType *RaftType) {
 							if reply.Result {
 								//true reply recvd.
 								serv.ServState.followers[enve.Pid] = enve.Pid
-								totalVotes:=(len(serv.ServState.followers) + 1)
+								totalVotes := (len(serv.ServState.followers) + 1)
 								log.Println("For Candidate : ", serv.ServerInfo.MyPid, "Vote Recvd from :-", enve.Pid, " total votes:-", totalVotes)
-								n := int((len(serv.ServerInfo.PeerIds) +1)/ 2)
+								n := int((len(serv.ServerInfo.PeerIds) + 1) / 2)
 								if n < totalVotes {
 									//quorum.
 									log.Println("Leader Declared:-", serv.ServerInfo.Pid())
@@ -368,9 +368,8 @@ func (serv Server) Start(RType *RaftType) {
 							log.Println("Leader :", serv.ServerInfo.MyPid, "has received rejection from", enve.Pid, "for term", reply.Term, "and total votes:-", (len(serv.ServState.followers) + 1))
 							delete(serv.ServState.followers, enve.Pid)
 
-
-							totalVotes:=(len(serv.ServState.followers) + 1)
-                                                        n := int((len(serv.ServerInfo.PeerIds) +1)/ 2)
+							totalVotes := (len(serv.ServState.followers) + 1)
+							n := int((len(serv.ServerInfo.PeerIds) + 1) / 2)
 							if n >= totalVotes {
 								RType.Leader = 0
 								timer.Stop()
@@ -453,7 +452,7 @@ func (serv Server) Start(RType *RaftType) {
 
 				log.Println("Leader -", serv.ServerInfo.MyPid, " is going for sleep.")
 				//time.Sleep(20 * time.Second)
-				time.Sleep(time.Duration((rand.Intn(350)+serv.ServerInfo.MyPid*400))*time.Millisecond)//minimum will be 400ms.
+				time.Sleep(time.Duration((rand.Intn(350) + serv.ServerInfo.MyPid*400)) * time.Millisecond) //minimum will be 400ms.
 				log.Println("Leader -", serv.ServerInfo.MyPid, " has awaken from sleep.")
 				time.After(1000)
 
