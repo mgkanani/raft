@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Raft by mgkanani</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <script src="javascripts/scale.fix.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1 class="header">Raft</h1>
+        <p class="header">raft implementation</p>
+
+        <ul>
+          <li class="download"><a class="buttons" href="https://github.com/mgkanani/raft/zipball/master">Download ZIP</a></li>
+          <li class="download"><a class="buttons" href="https://github.com/mgkanani/raft/tarball/master">Download TAR</a></li>
+          <li><a class="buttons github" href="https://github.com/mgkanani/raft">View On GitHub</a></li>
+        </ul>
+
+        <p class="header">This project is maintained by <a class="header name" href="https://github.com/mgkanani">mgkanani</a></p>
+
+
+      </header>
+      <section>
+        <h1>
+<a name="raft" class="anchor" href="#raft"><span class="octicon octicon-link"></span></a>raft</h1>
+
+<p>A <code>raft</code> cluster contains several servers which allows the system to tolerate  failure(for 5 servers, it will be 2). This template/pkg is implementing this algorithm. In this, one leader will be selected among the servers.</p>
+
+<h1>
+<a name="usage" class="anchor" href="#usage"><span class="octicon octicon-link"></span></a>Usage</h1>
+
+<h2>
+<a name="to-install" class="anchor" href="#to-install"><span class="octicon octicon-link"></span></a>To install</h2>
+
+<pre><code>go get github.com/mgkanani/cluster
+go get github.com/mgkanani/raft
+go install github.com/mgkanani/raft
+</code></pre>
+
+<h2>
+<a name="documentation-reference-" class="anchor" href="#documentation-reference-"><span class="octicon octicon-link"></span></a>Documentation reference:-</h2>
+
+<p><a href="https://godoc.org/github.com/mgkanani/raft"><img src="https://godoc.org/github.com/mgkanani/raft?status.png" alt="GoDoc"></a></p>
+
+<h2>
+<a name="to-run-with-default-configuration-" class="anchor" href="#to-run-with-default-configuration-"><span class="octicon octicon-link"></span></a>To run with default configuration:-</h2>
+
+<p>Till now partial test file has been developed. It is not fully automated for testing so it requires user's involvement.
+(go to cluster directory i.e. github.com/mgkanani/raft and run below after some time use cntr+c to stop the execution and observe the log).</p>
+
+<pre><code>go test 2&gt;log_file_name
+</code></pre>
+
+<p>(to see which server had been declared as a Leader use)</p>
+
+<pre><code>cat log_file_name|grep Declared
+</code></pre>
+      </section>
+      <footer>
+        <p><small>Hosted on <a href="http://pages.github.com">GitHub Pages</a> using the Dinky theme</small></p>
+      </footer>
+    </div>
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
+		
+  </body>
+</html>
