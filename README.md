@@ -5,9 +5,14 @@ A `raft` cluster contains several servers which allows the system to tolerate  f
 #Usage
 ## To install
 ```
+go get github.com/mgkanani/cluster
 go get github.com/mgkanani/raft
 go install github.com/mgkanani/raft
 ```
+
+##Documentation reference:-
+[![GoDoc](https://godoc.org/github.com/mgkanani/raft?status.png)](https://godoc.org/github.com/mgkanani/raft)
+
 ## To run with default configuration:-
 
 Till now partial test file has been developed. It is not fully automated for testing so it requires user's involvement.
