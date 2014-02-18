@@ -20,7 +20,7 @@ type RaftType struct {
 var RType = &RaftType{Leader: 0}
 
 //Msg Type,whether it is request or reply.
-type Msg struct{
+type MsgType struct{
 	MType byte // 1 for reply, 0 for request.
 	Msg interface{} //actual object/message.
 }
@@ -162,6 +162,7 @@ func (serv *Server) StateFollower() {
 				if (req.Term > serv.Term() || serv.Vote() == 0) || serv.Vote() == serv.ServerInfo.Pid() {
 					// getting higher term and it has not voted before or same leader with.
 					reply = &Reply{Term: req.Term, Result: true}
+					test_data :=&MsgType{MType:1,Msg:reply}
 					t_data, err := json.Marshal(reply)
 					if err != nil {
 						log.Println("Follower:- getting higher term:- Marshaling error: ", err)
@@ -170,7 +171,8 @@ func (serv *Server) StateFollower() {
 					serv.ServState.UpdateTerm(req.Term)
 					timer.Reset(duration) //reset timer
 					serv.ServState.UpdateVote_For(req.CandidateId)
-					envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: data}
+					envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: test_data}
+					envelope = cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: data}
 					serv.ServerInfo.Outbox() <- &envelope
 					log.Println("Higher Term:", req.Term, "Recvd for Follower -", serv.ServerInfo.MyPid)
 				} else { //getting request for vote
