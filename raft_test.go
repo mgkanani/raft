@@ -7,6 +7,8 @@ import (
 		"fmt"
 		Raft "github.com/mgkanani/raft"*/
 	//  "io/ioutil"
+	"bufio"
+	"os"
 	"sync"
 	"testing"
 )
@@ -40,8 +42,20 @@ func TestRaft(t *testing.T) {
 
 }
 func StartServer(i int, wg *sync.WaitGroup, rft *RaftType) {
+	ch := make(chan int)
 	server := InitServer(i, "./config.json")
-	server.Start(rft)
+	server.Start(rft,ch)
+	go start(ch)
 	wg.Done()
 	return
+}
+
+func start(ch chan int){
+	for i:=1;i<6;i++{
+
+	stdin := bufio.NewReader(os.Stdin)
+	//ch <- int(stdin.ReadString('\n'))
+	_ ,_= stdin.ReadByte()
+	ch <- i
+	}
 }
