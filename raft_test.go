@@ -33,7 +33,7 @@ func TestRaft(t *testing.T) {
 	raftType := &RaftType{Leader: 0}
 
 	wg := new(sync.WaitGroup)
-	for i := 1; i < 9; i++ {
+	for i := 1; i < 6; i++ {
 		wg.Add(1)
 		go StartServer(i, wg, raftType)
 	}

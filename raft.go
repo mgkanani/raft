@@ -20,9 +20,9 @@ type RaftType struct {
 var RType = &RaftType{Leader: 0}
 
 //Msg Type,whether it is request or reply.
-type MsgType struct{
-	MType byte // 1 for reply, 0 for request.
-	Msg interface{} //actual object/message.
+type MsgType struct {
+	MType byte        // 1 for reply, 0 for request.
+	Msg   interface{} //actual object/message.
 }
 
 type Reply struct {
@@ -135,8 +135,8 @@ func (serv Server) Start(RType *RaftType, ch chan int) {
 
 //Server goes to Follower state.
 func (serv *Server) StateFollower(ch chan int) {
-	//duration := 1*time.Second + time.Duration(rand.Intn(151))*time.Millisecond
-	duration := 600*time.Millisecond
+	duration := 1*time.Second + time.Duration(rand.Intn(151))*time.Millisecond
+	//duration := 600*time.Millisecond
 	//duration := time.Duration((rand.Intn(50)+serv.ServerInfo.MyPid*50)*12)*time.Millisecond
 	timer := time.NewTimer(duration)
 
@@ -152,41 +152,43 @@ func (serv *Server) StateFollower(ch chan int) {
 			}
 			//fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid, " Request is:-.", req)
 
-			if enve.Pid == serv.Vote() && RType.isLeader() {
+			if req.Term < serv.Term() {
+				//just drop the message or reject the request.
+
+			} else if (enve.Pid == serv.Vote() && req.Term == serv.Term()) || req.Term > serv.Term() {
+				//heartbeat received or higher term received, reset timer,send accept for request.
 				timer.Reset(duration)
-				log.Println("Heartbeat Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid)
-			} else {
 				//fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid, " Request Recieved.", req)
 				var reply *Reply
-				//if (req.Term >= serv.Term() && serv.Vote() == 0 )|| serv.Vote() == serv.ServerInfo.Pid() {
-				if (req.Term > serv.Term() || serv.Vote() == 0) || serv.Vote() == serv.ServerInfo.Pid() {
-					// getting higher term and it has not voted before or same leader with.
-					reply = &Reply{Term: req.Term, Result: true}
-					t_data, err := json.Marshal(reply)
-					if err != nil {
-						log.Println("Follower:- getting higher term:- Marshaling error: ", err)
-					}
-					data := string(t_data)
-					serv.ServState.UpdateTerm(req.Term)
-					timer.Reset(duration) //reset timer
-					serv.ServState.UpdateVote_For(req.CandidateId)
-					envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: data}
-					serv.ServerInfo.Outbox() <- &envelope
-					log.Println("Higher Term:", req.Term, "Recvd for Follower -", serv.ServerInfo.MyPid)
-				} else { //getting request for vote
-					reply = &Reply{Term: req.Term, Result: false}
-					data, err := json.Marshal(reply)
-					if err != nil {
-						log.Println("Follower:- getting request for vote:- Marshaling error: ", err)
-					}
-					serv.ServState.UpdateVote_For(req.CandidateId)
-					envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: string(data)}
-					serv.ServerInfo.Outbox() <- &envelope
-					log.Println("Follower : Serverid-", serv.ServerInfo.MyPid, "Rejected for", req.CandidateId, "on Term:", req.Term)
+				// getting higher term and it has not voted before or same leader with.
+				reply = &Reply{Term: req.Term, Result: true}
+				t_data, err := json.Marshal(reply)
+				if err != nil {
+					log.Println("Follower:- getting higher term:- Marshaling error: ", err)
 				}
+				data := string(t_data)
+				serv.ServState.UpdateTerm(req.Term)
+				timer.Reset(duration) //reset timer
+				serv.ServState.UpdateVote_For(req.CandidateId)
+				envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: data}
+				serv.ServerInfo.Outbox() <- &envelope
+				if enve.Pid == serv.Vote() {
+					log.Println("Heartbeat Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid)
+				} else {
+					log.Println("Higher Term:", req.Term, "Recvd for Follower -", serv.ServerInfo.MyPid)
+				}
+			} else { //getting request for vote
+				reply := &Reply{Term: req.Term, Result: false}
+				data, err := json.Marshal(reply)
+				if err != nil {
+					log.Println("Follower:- getting request for vote:- Marshaling error: ", err)
+				}
+				serv.ServState.UpdateVote_For(req.CandidateId)
+				envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: string(data)}
+				serv.ServerInfo.Outbox() <- &envelope
+				log.Println("Follower : Serverid-", serv.ServerInfo.MyPid, "Rejected for", req.CandidateId, "on Term:", req.Term)
 			}
 		} else { //reply recvd. drop it.
-
 		}
 
 	//case <-time.After(2000+time.Duration(rand.Intn(151)*20) * time.Millisecond):
@@ -219,12 +221,12 @@ func (serv *Server) StateFollower(ch chan int) {
 				//fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid, "After Awaking,req sent for vote", req, "actual sent", data, envelope, serv)
 			}
 			timer.Stop() //stop timer.
-			return;
+			return
 		}
 
-	case id:=<-ch :
-		if id==serv.ServerInfo.Pid(){
-			time.Sleep(1*time.Second)
+	case id := <-ch:
+		if id == serv.ServerInfo.Pid() {
+			time.Sleep(1 * time.Second)
 		}
 	}
 	timer.Stop()
@@ -235,8 +237,9 @@ func (serv *Server) StateFollower(ch chan int) {
 func (serv *Server) StateCandidate(ch chan int) {
 
 	//duration := 1*time.Second + time.Duration(rand.Intn(151))*time.Millisecond
-	duration := 150*time.Millisecond + time.Duration(rand.Intn(151))*time.Millisecond //choose duration between 150-300ms.
-	timer := time.NewTimer(duration) //start timer.
+	//duration := 150*time.Millisecond + time.Duration(rand.Intn(151))*time.Millisecond //choose duration between 150-300ms.
+	duration := 550*time.Millisecond + time.Duration(rand.Intn(151))*time.Millisecond //choose duration between 150-300ms.
+	timer := time.NewTimer(duration)                                                  //start timer.
 
 	select { //used for selecting channel for given event.
 	case enve := <-serv.ServerInfo.Inbox():
@@ -259,7 +262,7 @@ func (serv *Server) StateCandidate(ch chan int) {
 						n := int((len(serv.ServerInfo.PeerIds) + 1) / 2)
 						if n < totalVotes {
 							//quorum.
-							log.Println("Leader Declared:-", serv.ServerInfo.Pid(),"For Term:-",serv.Term())
+							log.Println("Leader Declared:-", serv.ServerInfo.Pid(), "For Term:-", serv.Term())
 							//become leader.
 							RType.Leader = serv.ServerInfo.Pid()
 							serv.ServState.UpdateState(2) //update state to Leader.
@@ -273,7 +276,7 @@ func (serv *Server) StateCandidate(ch chan int) {
 							// braodcast the requestFor vote.
 							serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: string(data)}
 							timer.Stop() //stop timer.
-							return;
+							return
 						}
 					} else {
 						delete(serv.ServState.followers, enve.Pid)
@@ -306,7 +309,7 @@ func (serv *Server) StateCandidate(ch chan int) {
 				serv.ServerInfo.Outbox() <- &envelope
 				log.Println("Cand -", serv.ServerInfo.MyPid, " has sent reply to Leader:-", enve.Pid)
 				timer.Stop() //stop timer.
-				return;
+				return
 			} else if req.Term >= serv.Term() {
 				// getting higher term.
 				log.Println("Higher Term Recvd for Candidate ", serv.ServerInfo.MyPid, "from", enve.Pid)
@@ -323,7 +326,7 @@ func (serv *Server) StateCandidate(ch chan int) {
 				serv.ServerInfo.Outbox() <- &envelope
 				//fmt.Println("from:-", serv.ServerInfo.MyPid, "to", enve.Pid, envelope)
 				timer.Stop() //stop timer.
-				return;
+				return
 			} else {
 				reply = &Reply{Term: req.Term, Result: false}
 				data, err := json.Marshal(reply)
@@ -353,13 +356,14 @@ func (serv *Server) StateCandidate(ch chan int) {
 		}
 
 	case <-timer.C:
+		log.Println("Election Timer Timeout for:-", serv.ServerInfo.MyPid)
 		serv.ServState.UpdateVote_For(serv.ServerInfo.Pid()) //giving him self vote.
 		/*
-		ok := serv.ServState.UpdateState(1)                  // update state to be a candidate.
-		if !ok {
-			println("error in updating state")
-		}*/
-		serv.ServState.UpdateTerm(serv.Term() + 1)           //increment term by one.
+			ok := serv.ServState.UpdateState(1)                  // update state to be a candidate.
+			if !ok {
+				println("error in updating state")
+			}*/
+		serv.ServState.UpdateTerm(serv.Term() + 1) //increment term by one.
 		x := &Request{Term: serv.Term(), CandidateId: serv.ServerInfo.Pid()}
 		data, err := json.Marshal(x)
 		//fmt.Println("data is:-", x)
@@ -370,9 +374,9 @@ func (serv *Server) StateCandidate(ch chan int) {
 		serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: string(data)}
 		timer = time.NewTimer(duration) //start timer.
 
-	case id:=<-ch :
-		if id==serv.ServerInfo.Pid(){
-			time.Sleep(1*time.Second)
+	case id := <-ch:
+		if id == serv.ServerInfo.Pid() {
+			time.Sleep(1 * time.Second)
 		}
 	}
 	timer.Stop()
@@ -384,11 +388,11 @@ func (serv *Server) StateLeader(ch chan int) {
 
 	//duration := 1*time.Second + time.Duration(rand.Intn(51))*time.Millisecond//heartbeat timer.
 	duration := time.Duration(rand.Intn(51)) * time.Millisecond //heartbeat time-duration.
-	timer := time.NewTimer(duration)//start timer.
+	timer := time.NewTimer(duration)                            //start timer.
 
 	select { //used for selecting channel for given event.
 	case enve := <-serv.ServerInfo.Inbox():
-		timer.Reset(duration)
+		//timer.Reset(duration)
 		if enve.MsgId == 1 { //reply recvd
 
 			var reply Reply
@@ -414,8 +418,8 @@ func (serv *Server) StateLeader(ch chan int) {
 						serv.ServState.UpdateVote_For(0)
 						serv.ServState.UpdateState(0)                //become follower.
 						serv.ServState.followers = make(map[int]int) //clear followers list.
-						timer.Stop() //stop timer.
-						return;
+						timer.Stop()                                 //stop timer.
+						return
 					}
 				}
 			} else {
@@ -446,7 +450,7 @@ func (serv *Server) StateLeader(ch chan int) {
 				//fmt.Println("from:-", serv.ServerInfo.MyPid, "to", enve.Pid, envelope)
 				serv.ServState.UpdateVote_For(enve.Pid)
 				timer.Stop() //stop timer.
-				return;
+				return
 			} else {
 				reply = &Reply{Term: req.Term, Result: false}
 				data, err := json.Marshal(reply)
@@ -481,18 +485,18 @@ func (serv *Server) StateLeader(ch chan int) {
 		// braodcast the requestFor vote.
 		serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: string(data)}
 		/*
-		for _, pid := range serv.ServState.followers {
-			serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: pid, MsgId: 0, Msg: string(data)}
-		}
+			for _, pid := range serv.ServState.followers {
+				serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: pid, MsgId: 0, Msg: string(data)}
+			}
 		*/
 		//log.Println("Leader -", serv.ServerInfo.MyPid, " is going for sleep.")
 		//time.Sleep(20 * time.Second)
 		//time.Sleep(time.Duration((rand.Intn(350) + serv.ServerInfo.MyPid*400)) * time.Millisecond) //minimum will be 400ms.
 		//log.Println("Leader -", serv.ServerInfo.MyPid, " has awaken from sleep.")
 
-	case id:=<-ch :
-		if id==serv.ServerInfo.Pid(){
-			time.Sleep(1*time.Second)
+	case id := <-ch:
+		if id == serv.ServerInfo.Pid() {
+			time.Sleep(1 * time.Second)
 		}
 
 	}
