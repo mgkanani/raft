@@ -11,6 +11,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"log"
 )
 
 func TestRaft(t *testing.T) {
@@ -43,9 +44,12 @@ func TestRaft(t *testing.T) {
 }
 func StartServer(i int, wg *sync.WaitGroup, rft *RaftType) {
 	ch := make(chan int)
-	server := InitServer(i, "./config.json")
-	server.Start(rft,ch)
-	go start(ch)
+	server,valid := InitServer(i, "./config.json")
+	if valid{
+		log.Println("inside valid",valid,server)
+		server.Start(rft,ch)
+		go start(ch)
+	}
 	wg.Done()
 	return
 }

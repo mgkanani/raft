@@ -101,11 +101,12 @@ func (raft RaftType) isLeader() bool {
 }
 
 //Initializes the servers with given parameters.
-func InitServer(pid int, file string) Server {
+func InitServer(pid int, file string) (Server,bool) {
 	serv := Server{}
 	serv.ServerInfo = cluster.New(pid, file)
 	serv.ServState.followers = make(map[int]int)
-	return serv
+	log.Println(serv,serv.ServerInfo.Valid)
+	return serv,serv.ServerInfo.Valid
 }
 
 //starts the leader election process.
