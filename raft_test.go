@@ -46,7 +46,7 @@ func StartServer(i int, wg *sync.WaitGroup, rft *RaftType) {
 	ch := make(chan int)
 	server,valid := InitServer(i, "./config.json")
 	if valid{
-		log.Println("inside valid",valid,server)
+		//log.Println("inside valid",valid,server)
 		server.Start(rft,ch)
 		go start(ch)
 	}
