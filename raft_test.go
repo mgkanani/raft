@@ -11,8 +11,10 @@ import (
 	"os"
 	"sync"
 	"testing"
-	"log"
+	//"log"
 )
+
+var total_servers = 7
 
 func TestRaft(t *testing.T) {
 	/*        flagid := flag.Int("pid", 1, "flag type is integer")
@@ -31,31 +33,30 @@ func TestRaft(t *testing.T) {
 	                  return
 	          }
 	*/
-	raftType := &RaftType{Leader: 0}
-
+//	raftType := &RaftType{Leader: 0}
+	total_servers +=1
 	wg := new(sync.WaitGroup)
-	for i := 1; i < 6; i++ {
+	for i := 1; i < total_servers; i++ {
 		wg.Add(1)
-		go StartServer(i, wg, raftType)
+		go StartServer(i, wg)
 	}
 	wg.Wait()
 	return
 
 }
-func StartServer(i int, wg *sync.WaitGroup, rft *RaftType) {
+func StartServer(i int, wg *sync.WaitGroup) {
 	ch := make(chan int)
-	server,valid := InitServer(i, "./config.json")
+	valid := InitServer(i, "./config.json",true , ch)
 	if valid{
 		//log.Println("inside valid",valid,server)
-		server.Start(rft,ch)
 		go start(ch)
 	}
-	wg.Done()
+	//wg.Done()
 	return
 }
 
 func start(ch chan int){
-	for i:=1;i<6;i++{
+	for i:=1;i<total_servers;i++{
 
 	stdin := bufio.NewReader(os.Stdin)
 	//ch <- int(stdin.ReadString('\n'))
