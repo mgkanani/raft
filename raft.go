@@ -119,7 +119,8 @@ func InitServer(pid int, file string ,dbg bool , ch chan int) (bool) {
 	}
 	if serv.ServerInfo.Valid{
 		//go serv.start(RType,ch)
-		go serv.start(ch)
+		//go serv.start(ch)
+		serv.start(ch)
 	}
 	return serv.ServerInfo.Valid
 }
@@ -439,24 +440,29 @@ func (serv *Server) StateCandidate(ch chan int) {
 		if debug{
 			log.Println("Election Timer Timeout for:-", serv.ServerInfo.MyPid)
 		}
-		serv.ServState.UpdateVote_For(serv.ServerInfo.Pid()) //giving him self vote.
+		//serv.ServState.UpdateVote_For(serv.ServerInfo.Pid()) //giving him self vote.
+		serv.ServState.UpdateVote_For(0) //set vote to no-one.
+                serv.ServState.UpdateState(0) //become follower.
+		serv.ServState.followers = make(map[int]int) //clear followers list.
+		timer.Stop()
+		return;
 		/*
 			ok := serv.ServState.UpdateState(1)                  // update state to be a candidate.
 			if !ok {
 				println("error in updating state")
 			}*/
-		serv.ServState.UpdateTerm(serv.Term() + 1) //increment term by one.
-		x := &Request{Term: serv.Term(), CandidateId: serv.ServerInfo.Pid()}
-		data, err := json.Marshal(x)
+		//serv.ServState.UpdateTerm(serv.Term() + 1) //increment term by one.
+		//x := &Request{Term: serv.Term(), CandidateId: serv.ServerInfo.Pid()}
+		//data, err := json.Marshal(x)
 		//fmt.Println("data is:-", x)
-		if err != nil {
-			if debug{
-				log.Println("Marshaling error", x)
-			}
-		}
+		//if err != nil {
+		//	if debug{
+		//		log.Println("Marshaling error", x)
+		//	}
+		//}
 		// braodcast the requestFor vote.
-		serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: string(data)}
-		timer = time.NewTimer(duration) //start timer.
+		//serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: string(data)}
+		//timer = time.NewTimer(duration) //start timer.
 
 	case id := <-ch:
 		if id == serv.ServerInfo.Pid() {

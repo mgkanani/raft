@@ -78,6 +78,8 @@ now use:-```godoc math/rand ```
 
 [http://stackoverflow.com/questions/1841443/iterating-over-all-the-keys-of-a-golang-map]
 
+[http://stackoverflow.com/questions/11820842/how-to-configure-golang-so-it-can-access-environment-variables-in-osx]
+
 #Mistakes(very silly but consumes much time) during coding which takes hours to find and resolve.
 
 Making Request and Reply's data as private and using marshal and Unmarshal function which returns null data.
