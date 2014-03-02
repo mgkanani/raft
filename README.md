@@ -80,6 +80,10 @@ now use:-```godoc math/rand ```
 
 [http://stackoverflow.com/questions/11820842/how-to-configure-golang-so-it-can-access-environment-variables-in-osx]
 
+[http://stackoverflow.com/questions/19965795/go-golang-write-log-to-file]
+
+[http://stackoverflow.com/questions/18986943/in-golang-how-can-i-write-the-stdout-of-an-exec-cmd-to-a-file]
+
 #Mistakes(very silly but consumes much time) during coding which takes hours to find and resolve.
 
 Making Request and Reply's data as private and using marshal and Unmarshal function which returns null data.
