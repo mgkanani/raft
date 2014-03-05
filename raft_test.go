@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 )
-
+var mutex = &sync.Mutex{}
 var total_servers = 7
 var cmd map[int]*exec.Cmd
 var dbg = false
@@ -51,11 +51,27 @@ func TestRaft(t *testing.T) {
 	}
 	go killProc(wg)
 	wg.Wait()
+
+        for i := 1; i < total_servers; i++ {
+                if dbg {
+                        fmt.Println("process state:-", cmd[i].ProcessState)
+                }
+		mutex.Lock()
+                if cmd[i].ProcessState == nil || !cmd[i].ProcessState.Exited(){
+                        if dbg {
+                                fmt.Println("Kill process:-", cmd[i])
+                        }
+                        cmd[i].Process.Kill()
+                }
+		mutex.Unlock()
+        }
 	return
 
 }
 func start(cmd *exec.Cmd) {
+	//err := cmd.Run()
 	err := cmd.Run()
+		fmt.Println("err is:", err)
 	if dbg {
 		fmt.Println("command was:", cmd, err)
 	}
@@ -68,19 +84,20 @@ func killProc(wg *sync.WaitGroup) {
 		if dbg {
 			fmt.Println("process state:-", cmd[i].ProcessState)
 		}
-		if cmd[i].ProcessState == nil {
-			if dbg {
-				fmt.Println("Kill process:-", cmd[i])
-			}
-			time.Sleep(5 * time.Second)
-			cmd[i].Process.Kill()
-		} else if !cmd[i].ProcessState.Exited() {
-			time.Sleep(5 * time.Second)
+		mutex.Lock()
+		if cmd[i].ProcessState == nil || !cmd[i].ProcessState.Exited(){
 			if dbg {
 				fmt.Println("Kill process:-", cmd[i])
 			}
 			cmd[i].Process.Kill()
+			//cmd[i].Process.Wait()
+			time.Sleep(5 * time.Second)
+			temp:=&exec.Cmd{Path:cmd[i].Path,Args:cmd[i].Args}
+			delete(cmd,i)
+			cmd[i]=temp
+			cmd[i].Start()
 		}
+		mutex.Unlock()
 		wg.Done()
 	}
 }
