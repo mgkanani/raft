@@ -6,16 +6,17 @@ import (
 	"log"
 	rand "math/rand"
 	"time"
+
 //	"fmt"
 )
 
-type RaftType struct{
-	serv *Server;
+type RaftType struct {
+	serv *Server
 }
 
 type Raft interface {
-	CurTerm() int      //returns the current term number.
-	Leader() int   //returns id of a leader if there exist, otherwise returns -1;
+	CurTerm() int //returns the current term number.
+	Leader() int  //returns id of a leader if there exist, otherwise returns -1;
 }
 
 //Msg Type,whether it is request or reply.
@@ -38,9 +39,9 @@ type Request struct {
 
 // Server State data structure
 type ServerState struct {
-	my_term  int //default will be zero
-	vote_for int //value will be pid of leader.
-	my_state int
+	my_term   int //default will be zero
+	vote_for  int //value will be pid of leader.
+	my_state  int
 	followers map[int]int
 }
 
@@ -91,27 +92,25 @@ func (serv Server) Vote() int {
 	return serv.ServState.vote_for
 }
 
-func (rt RaftType) CurTerm() int{
+func (rt RaftType) CurTerm() int {
 	return rt.serv.Term()
 }
 
-
-func (rt RaftType) Leader() int{
-	if rt.serv.ServState.my_state == FOLLOWER{
+func (rt RaftType) Leader() int {
+	if rt.serv.ServState.my_state == FOLLOWER {
 		return rt.serv.ServState.vote_for
-	}else if rt.serv.ServState.my_state == LEADER{
+	} else if rt.serv.ServState.my_state == LEADER {
 		return rt.serv.ServState.vote_for
 	}
 	return -1
 }
 
-
 func (rt *RaftType) setServer(serv *Server) {
-	rt.serv=serv
+	rt.serv = serv
 }
 
 //Initializes the servers with given parameters.
-func InitServer(pid int, file string, dbg bool) (bool,*RaftType) {
+func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 	/*	fle, err := os.OpenFile("log_pid_"+strconv.Itoa(pid) ,os.O_WRONLY | os.O_CREATE | os.O_APPEND, 0666)
 		if err != nil {
 		    println("error opening file: %v", err)
@@ -129,12 +128,12 @@ func InitServer(pid int, file string, dbg bool) (bool,*RaftType) {
 	serv.ServState.followers = make(map[int]int)
 
 	if debug {
-		log.Println(rtype, serv.ServerInfo.Valid,serv)
+		log.Println(rtype, serv.ServerInfo.Valid, serv)
 	}
 	if serv.ServerInfo.Valid {
 		go serv.start()
 	}
-	return serv.ServerInfo.Valid,&rtype
+	return serv.ServerInfo.Valid, &rtype
 }
 
 //starts the leader election process.

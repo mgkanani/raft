@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 )
+
 var mutex = &sync.Mutex{}
 var total_servers = 7
 var cmd map[int]*exec.Cmd
@@ -52,21 +53,21 @@ func TestRaft(t *testing.T) {
 	go killProc(wg)
 	wg.Wait()
 
-        for i := 1; i < total_servers; i++ {
-                if dbg {
-                        fmt.Println("process state:-", cmd[i].ProcessState)
-                }
+	for i := 1; i < total_servers; i++ {
+		if dbg {
+			fmt.Println("process state:-", cmd[i].ProcessState)
+		}
 		mutex.Lock()
-                if cmd[i].Process != nil {
+		if cmd[i].Process != nil {
 			if cmd[i].ProcessState == nil {
-	                        if dbg {
-        	                        fmt.Println("Kill process:-", cmd[i])
-                	        }
-                        	cmd[i].Process.Kill()
+				if dbg {
+					fmt.Println("Kill process:-", cmd[i])
+				}
+				cmd[i].Process.Kill()
 			}
-                }
+		}
 		mutex.Unlock()
-        }
+	}
 	return
 
 }
@@ -75,7 +76,7 @@ func start(cmd *exec.Cmd) {
 	err := cmd.Run()
 	if dbg {
 		fmt.Println("err is:", err)
-		fmt.Println("command was:", cmd,"\tstate:-",cmd.ProcessState,"\t process:-",cmd.Process)
+		fmt.Println("command was:", cmd, "\tstate:-", cmd.ProcessState, "\t process:-", cmd.Process)
 	}
 }
 func killProc(wg *sync.WaitGroup) {
@@ -87,17 +88,17 @@ func killProc(wg *sync.WaitGroup) {
 			fmt.Println("process state:-", cmd[i].ProcessState)
 		}
 		mutex.Lock()
-		if cmd[i].Process != nil {//process either exited successfully or in running status.
-			if  cmd[i].ProcessState == nil{
+		if cmd[i].Process != nil { //process either exited successfully or in running status.
+			if cmd[i].ProcessState == nil {
 				if dbg {
 					fmt.Println("Kill process:-", cmd[i])
 				}
 				cmd[i].Process.Kill()
 				//cmd[i].Process.Wait()
 				time.Sleep(5 * time.Second)
-				temp:=&exec.Cmd{Path:cmd[i].Path,Args:cmd[i].Args}
-				delete(cmd,i)
-				cmd[i]=temp
+				temp := &exec.Cmd{Path: cmd[i].Path, Args: cmd[i].Args}
+				delete(cmd, i)
+				cmd[i] = temp
 				cmd[i].Start()
 			}
 		}
