@@ -10,6 +10,7 @@ import (
 
 type RaftType struct{
 	server *ServerState;
+	
 }
 
 type Raft interface {
@@ -90,23 +91,17 @@ func (serv Server) Vote() int {
 	return serv.ServState.vote_for
 }
 
-//returns true if there is any leader,otherwise false.
-/*
-func (raft RaftType) isLeader() bool {
-	if raft.Leader > 0 {
-		return true
-		/*	}
-			if serv.ServState.my_state == 2 {
-				return true
-		* /
-	} else {
-		return false
-	}
+func (rt RaftType) CurTerm() int{
+	return rt.server.my_term
 }
-*/
+
+
+func (rt RaftType) Leader() int{
+	return rt.server.my_term
+}
 
 //Initializes the servers with given parameters.
-func InitServer(pid int, file string, dbg bool) bool {
+func InitServer(pid int, file string, dbg bool) (bool,RaftType) {
 	/*	fle, err := os.OpenFile("log_pid_"+strconv.Itoa(pid) ,os.O_WRONLY | os.O_CREATE | os.O_APPEND, 0666)
 		if err != nil {
 		    println("error opening file: %v", err)
@@ -128,9 +123,9 @@ func InitServer(pid int, file string, dbg bool) bool {
 	if serv.ServerInfo.Valid {
 		//go serv.start(RType,ch)
 		//go serv.start(ch)
-		serv.start()
+		go serv.start()
 	}
-	return serv.ServerInfo.Valid
+	return serv.ServerInfo.Valid,rafttype
 }
 
 //starts the leader election process.
