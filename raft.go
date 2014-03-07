@@ -6,11 +6,11 @@ import (
 	"log"
 	rand "math/rand"
 	"time"
-	"fmt"
+//	"fmt"
 )
 
 type RaftType struct{
-	Serv *Server;
+	serv *Server;
 }
 
 type Raft interface {
@@ -92,12 +92,22 @@ func (serv Server) Vote() int {
 }
 
 func (rt RaftType) CurTerm() int{
-	return rt.Serv.Term()
+	return rt.serv.Term()
 }
 
 
 func (rt RaftType) Leader() int{
-	return rt.Serv.Term()
+	if rt.serv.ServState.my_state == FOLLOWER{
+		return rt.serv.ServState.vote_for
+	}else if rt.serv.ServState.my_state == LEADER{
+		return rt.serv.ServState.vote_for
+	}
+	return -1
+}
+
+
+func (rt *RaftType) setServer(serv *Server) {
+	rt.serv=serv
 }
 
 //Initializes the servers with given parameters.
@@ -113,22 +123,18 @@ func InitServer(pid int, file string, dbg bool) (bool,*RaftType) {
 	debug = dbg
 	serv := new(Server)
 	rtype := RaftType{}
-	//fmt.Println(&rtype)
-	fmt.Println("hello")
-	rtype.Serv=serv
-	rtype.Serv.ServerInfo = cluster.New(pid, file)
-	rtype.Serv.ServState.followers = make(map[int]int)
+	rtype.setServer(serv)
 
-	//rafttype.server = & serv.ServState;
+	serv.ServerInfo = cluster.New(pid, file)
+	serv.ServState.followers = make(map[int]int)
+
 	if debug {
-		//log.Println(rtype.Serv, rtype.Serv.ServerInfo.Valid)
+		log.Println(rtype, serv.ServerInfo.Valid,serv)
 	}
-	if rtype.Serv.ServerInfo.Valid {
-		//go serv.start(RType,ch)
-		//go serv.start(ch)
-		go rtype.Serv.start()
+	if serv.ServerInfo.Valid {
+		go serv.start()
 	}
-	return rtype.Serv.ServerInfo.Valid,&rtype
+	return serv.ServerInfo.Valid,&rtype
 }
 
 //starts the leader election process.
