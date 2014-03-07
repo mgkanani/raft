@@ -28,7 +28,7 @@ func main() {
 	return
 }
 
-func printData(rafttype Raft.RaftType){
+func printData(rafttype *Raft.RaftType){
 	for{
 		time.Sleep(5*time.Second)
 		println(rafttype.CurTerm(),rafttype.Leader())
