@@ -22,15 +22,15 @@ func main() {
 		wg.Add(1)
 	}
 
-	go printData(rafttype)
+	go printData(rafttype,myid)
 
 	wg.Wait()
 	return
 }
 
-func printData(rafttype *Raft.RaftType) {
+func printData(rafttype *Raft.RaftType,myid int) {
 	for {
 		time.Sleep(5 * time.Second)
-		println(rafttype.CurTerm(), rafttype.Leader())
+		println("[",myid,"]","Current Term is :-",rafttype.CurTerm(), "Current Leader is:-",rafttype.Leader())
 	}
 }
