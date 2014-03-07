@@ -6,14 +6,15 @@ import (
 	"log"
 	rand "math/rand"
 	"time"
-
-//	"strconv"
-//	"os"
 )
 
+type RaftType struct{
+	server *ServerState;
+}
+
 type Raft interface {
-	Term() int      //returns the current term number.
-	isLeader() bool //returns true if there is a leader exist, otherwise false.
+	CurTerm() int      //returns the current term number.
+	Leader() int   //returns id of a leader if there exist, otherwise returns -1;
 }
 
 //Msg Type,whether it is request or reply.
@@ -39,11 +40,6 @@ type ServerState struct {
 	my_term  int //default will be zero
 	vote_for int //value will be pid of leader.
 	my_state int
-	/*
-		0	-- follower
-		1	-- candidate
-		2	-- leader
-	*/
 	followers map[int]int
 }
 
@@ -110,7 +106,7 @@ func (raft RaftType) isLeader() bool {
 */
 
 //Initializes the servers with given parameters.
-func InitServer(pid int, file string, dbg bool, ch chan int) bool {
+func InitServer(pid int, file string, dbg bool) bool {
 	/*	fle, err := os.OpenFile("log_pid_"+strconv.Itoa(pid) ,os.O_WRONLY | os.O_CREATE | os.O_APPEND, 0666)
 		if err != nil {
 		    println("error opening file: %v", err)
@@ -123,20 +119,23 @@ func InitServer(pid int, file string, dbg bool, ch chan int) bool {
 	serv := Server{}
 	serv.ServerInfo = cluster.New(pid, file)
 	serv.ServState.followers = make(map[int]int)
+
+	rafttype := RaftType{}
+	rafttype.server = & serv.ServState;
 	if debug {
 		log.Println(serv, serv.ServerInfo.Valid)
 	}
 	if serv.ServerInfo.Valid {
 		//go serv.start(RType,ch)
 		//go serv.start(ch)
-		serv.start(ch)
+		serv.start()
 	}
 	return serv.ServerInfo.Valid
 }
 
 //starts the leader election process.
 //func (serv Server) start(RType *RaftType, ch chan int)
-func (serv Server) start(ch chan int) {
+func (serv Server) start() {
 
 	for {
 		//fmt.Println("For out side ",serv)
@@ -145,47 +144,28 @@ func (serv Server) start(ch chan int) {
 		case FOLLOWER:
 			//follower
 			//fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid)
-			serv.StateFollower(ch)
+			serv.StateFollower()
 		case CANDIDATE:
 			//candidate
 			//fmt.Println("Candidate : Serverid-", serv.ServerInfo.MyPid)
-			serv.StateCandidate(ch)
+			serv.StateCandidate()
 		case LEADER:
 			//leader
 			//fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid)
-			serv.StateLeader(ch)
+			serv.StateLeader()
 		}
-		/*
-			if serv.ServState.my_state == 0 {
-				//follower
-				//fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid)
-
-				serv.StateFollower(ch)
-
-			} else if serv.ServState.my_state == 1 {
-				//candidate
-				//fmt.Println("Candidate : Serverid-", serv.ServerInfo.MyPid)
-				serv.StateCandidate(ch)
-
-			} else {
-				//leader
-				//fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid)
-				serv.StateLeader(ch)
-			}
-		*/
 	}
 
 }
 
 //Server goes to Follower state.
-func (serv *Server) StateFollower(ch chan int) {
+func (serv *Server) StateFollower() {
 	duration := 1*time.Second + time.Duration(rand.Intn(151))*time.Millisecond
 	//duration := 600*time.Millisecond
 	//duration := time.Duration((rand.Intn(50)+serv.ServerInfo.MyPid*50)*12)*time.Millisecond
 	timer := time.NewTimer(duration)
 
 	select { //used for selecting channel for given event.
-	//case enve := <-ch:
 	case enve := <-serv.ServerInfo.Inbox():
 		if enve.MsgId == 0 {
 			//Request Rcvd.
@@ -284,17 +264,13 @@ func (serv *Server) StateFollower(ch chan int) {
 			return
 		}
 
-	case id := <-ch:
-		if id == serv.ServerInfo.Pid() {
-			time.Sleep(1 * time.Second)
-		}
 	}
 	timer.Stop()
 
 }
 
 //Server goes to Candidate state.
-func (serv *Server) StateCandidate(ch chan int) {
+func (serv *Server) StateCandidate() {
 
 	//duration := 1*time.Second + time.Duration(rand.Intn(151))*time.Millisecond
 	//duration := 150*time.Millisecond + time.Duration(rand.Intn(151))*time.Millisecond //choose duration between 150-300ms.
@@ -473,17 +449,13 @@ func (serv *Server) StateCandidate(ch chan int) {
 		//serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: string(data)}
 		//timer = time.NewTimer(duration) //start timer.
 
-	case id := <-ch:
-		if id == serv.ServerInfo.Pid() {
-			time.Sleep(1 * time.Second)
-		}
 	}
 	timer.Stop()
 
 }
 
 //Server goes to Leader state.
-func (serv *Server) StateLeader(ch chan int) {
+func (serv *Server) StateLeader() {
 
 	//duration := 1*time.Second + time.Duration(rand.Intn(51))*time.Millisecond//heartbeat timer.
 	duration := time.Duration(rand.Intn(51)) * time.Millisecond //heartbeat time-duration.
@@ -614,11 +586,6 @@ func (serv *Server) StateLeader(ch chan int) {
 		//time.Sleep(20 * time.Second)
 		//time.Sleep(time.Duration((rand.Intn(350) + serv.ServerInfo.MyPid*400)) * time.Millisecond) //minimum will be 400ms.
 		//log.Println("Leader -", serv.ServerInfo.MyPid, " has awaken from sleep.")
-
-	case id := <-ch:
-		if id == serv.ServerInfo.Pid() {
-			time.Sleep(1 * time.Second)
-		}
 
 	}
 	timer.Stop()
