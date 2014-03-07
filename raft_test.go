@@ -57,11 +57,13 @@ func TestRaft(t *testing.T) {
                         fmt.Println("process state:-", cmd[i].ProcessState)
                 }
 		mutex.Lock()
-                if cmd[i].ProcessState == nil || !cmd[i].ProcessState.Exited(){
-                        if dbg {
-                                fmt.Println("Kill process:-", cmd[i])
-                        }
-                        cmd[i].Process.Kill()
+                if cmd[i].Process != nil {
+			if cmd[i].ProcessState == nil {
+	                        if dbg {
+        	                        fmt.Println("Kill process:-", cmd[i])
+                	        }
+                        	cmd[i].Process.Kill()
+			}
                 }
 		mutex.Unlock()
         }
@@ -71,9 +73,9 @@ func TestRaft(t *testing.T) {
 func start(cmd *exec.Cmd) {
 	//err := cmd.Run()
 	err := cmd.Run()
-		fmt.Println("err is:", err)
 	if dbg {
-		fmt.Println("command was:", cmd, err)
+		fmt.Println("err is:", err)
+		fmt.Println("command was:", cmd,"\tstate:-",cmd.ProcessState,"\t process:-",cmd.Process)
 	}
 }
 func killProc(wg *sync.WaitGroup) {
@@ -85,17 +87,19 @@ func killProc(wg *sync.WaitGroup) {
 			fmt.Println("process state:-", cmd[i].ProcessState)
 		}
 		mutex.Lock()
-		if cmd[i].ProcessState == nil || !cmd[i].ProcessState.Exited(){
-			if dbg {
-				fmt.Println("Kill process:-", cmd[i])
+		if cmd[i].Process != nil {//process either exited successfully or in running status.
+			if  cmd[i].ProcessState == nil{
+				if dbg {
+					fmt.Println("Kill process:-", cmd[i])
+				}
+				cmd[i].Process.Kill()
+				//cmd[i].Process.Wait()
+				time.Sleep(5 * time.Second)
+				temp:=&exec.Cmd{Path:cmd[i].Path,Args:cmd[i].Args}
+				delete(cmd,i)
+				cmd[i]=temp
+				cmd[i].Start()
 			}
-			cmd[i].Process.Kill()
-			//cmd[i].Process.Wait()
-			time.Sleep(5 * time.Second)
-			temp:=&exec.Cmd{Path:cmd[i].Path,Args:cmd[i].Args}
-			delete(cmd,i)
-			cmd[i]=temp
-			cmd[i].Start()
 		}
 		mutex.Unlock()
 		wg.Done()
