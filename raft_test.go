@@ -31,7 +31,7 @@ func TestRaft(t *testing.T) {
 	defer outfile.Close()
 	//fmt.Println("GOPATH=",path);
 	for i := 1; i < total_servers; i++ {
-		wg.Add(1)
+		wg.Add(3)
 		cmd[i] = exec.Command(path, "-pid", strconv.Itoa(i))
 		/*
 			str:="log_"+strconv.Itoa(i)
@@ -81,8 +81,9 @@ func start(cmd *exec.Cmd) {
 }
 func killProc(wg *sync.WaitGroup) {
 	time.Sleep(5 * time.Second)
+	for k:=0;k<3;k++{
 	for i := 1; i < total_servers; i++ {
-		time.After(5 * time.Second)
+		//time.After(5 * time.Second)
 		//_,ok:=cmd[i]
 		if dbg {
 			fmt.Println("process state:-", cmd[i].ProcessState)
@@ -96,7 +97,7 @@ func killProc(wg *sync.WaitGroup) {
 				cmd[i].Process.Kill()
 				//cmd[i].Process.Wait()
 				time.Sleep(5 * time.Second)
-				temp := &exec.Cmd{Path: cmd[i].Path, Args: cmd[i].Args}
+				temp := &exec.Cmd{Path: cmd[i].Path, Args: cmd[i].Args,Stdout:cmd[i].Stdout,Stderr:cmd[i].Stderr}
 				delete(cmd, i)
 				cmd[i] = temp
 				cmd[i].Start()
@@ -104,5 +105,6 @@ func killProc(wg *sync.WaitGroup) {
 		}
 		mutex.Unlock()
 		wg.Done()
+	}
 	}
 }
