@@ -10,21 +10,17 @@ go get github.com/mgkanani/raft
 go install github.com/mgkanani/raft
 ```
 
+
+## TO Test
+```
+go get github.com/mgkanani/raft/RaftMain
+go install github.com/mgkanani/raft/RaftMain
+go test github.com/mgkanani/raft
+```
+
+
 ##Documentation reference:-
 [![GoDoc](https://godoc.org/github.com/mgkanani/raft?status.png)](https://godoc.org/github.com/mgkanani/raft)
-
-## To run with default configuration:-
-
-Till now partial test file has been developed. It is not fully automated for testing so it requires user's involvement.
-(go to cluster directory i.e. github.com/mgkanani/raft and run below after some time use cntr+c to stop the execution and observe the log).
-```
-go test 2>log_file_name
-```
-
-(to see which server had been declared as a Leader use)
-```
-cat log_file_name|grep Declared
-```
 
 
 ###Modify config.json
@@ -83,6 +79,8 @@ now use:-```godoc math/rand ```
 [http://stackoverflow.com/questions/19965795/go-golang-write-log-to-file]
 
 [http://stackoverflow.com/questions/18986943/in-golang-how-can-i-write-the-stdout-of-an-exec-cmd-to-a-file]
+
+[http://www.sunzhongkui.me/rpc-communication-in-go-language/]
 
 #Mistakes(very silly but consumes much time) during coding which takes hours to find and resolve.
 

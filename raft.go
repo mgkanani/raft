@@ -98,7 +98,8 @@ func (rt RaftType) CurTerm() int {
 
 func (rt RaftType) Leader() int {
 	if rt.serv.ServState.my_state == FOLLOWER {
-		return rt.serv.ServState.vote_for
+		//return rt.serv.ServState.vote_for
+		return 0;
 	} else if rt.serv.ServState.my_state == LEADER {
 		return rt.serv.ServState.vote_for
 	}
