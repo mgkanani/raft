@@ -17,7 +17,7 @@ var rafttype *Raft.RaftType
 
 type Test struct{}
 
-func (t *Test) Add(id int, reply *Raft.Request) error {
+func (t *Test) GetStatus(id int, reply *Raft.Request) error {
 	reply.Term = rafttype.CurTerm()
 	reply.CandidateId = rafttype.Leader()
 

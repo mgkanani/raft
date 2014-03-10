@@ -6,7 +6,7 @@ import (
 	"log"
 	rand "math/rand"
 	"time"
-
+	"sync"
 //	"fmt"
 )
 
@@ -102,8 +102,9 @@ func (rt RaftType) Leader() int {
 		return 0;
 	} else if rt.serv.ServState.my_state == LEADER {
 		return rt.serv.ServState.vote_for
+	}else{
+		return -1
 	}
-	return -1
 }
 
 func (rt *RaftType) setServer(serv *Server) {
@@ -140,7 +141,7 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 //starts the leader election process.
 //func (serv Server) start(RType *RaftType, ch chan int)
 func (serv *Server) start() {
-
+	var mutex = &sync.Mutex{}
 	for {
 		//fmt.Println("For out side ",serv)
 
@@ -148,22 +149,22 @@ func (serv *Server) start() {
 		case FOLLOWER:
 			//follower
 			//fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid)
-			serv.StateFollower()
+			serv.StateFollower(mutex)
 		case CANDIDATE:
 			//candidate
 			//fmt.Println("Candidate : Serverid-", serv.ServerInfo.MyPid)
-			serv.StateCandidate()
+			serv.StateCandidate(mutex)
 		case LEADER:
 			//leader
 			//fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid)
-			serv.StateLeader()
+			serv.StateLeader(mutex)
 		}
 	}
 
 }
 
 //Server goes to Follower state.
-func (serv *Server) StateFollower() {
+func (serv *Server) StateFollower(mutex *sync.Mutex) {
 	duration := 1*time.Second + time.Duration(rand.Intn(151))*time.Millisecond
 	//duration := 600*time.Millisecond
 	//duration := time.Duration((rand.Intn(50)+serv.ServerInfo.MyPid*50)*12)*time.Millisecond
@@ -199,9 +200,11 @@ func (serv *Server) StateFollower() {
 					}
 				}
 				data := string(t_data)
-				serv.ServState.UpdateTerm(req.Term)
 				timer.Reset(duration) //reset timer
+				mutex.Lock()
+				serv.ServState.UpdateTerm(req.Term)
 				serv.ServState.UpdateVote_For(req.CandidateId)
+				mutex.Unlock()
 				envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: data}
 				serv.ServerInfo.Outbox() <- &envelope
 				if enve.Pid == serv.Vote() {
@@ -247,9 +250,11 @@ func (serv *Server) StateFollower() {
 		time.After(sleep_time) //sleeps for random time in between 150ms and 300 ms.
 		//fmt.Println(" awaken")
 		if serv.Vote() == 0 { //still no candidate exist.
+			mutex.Lock()
 			serv.ServState.UpdateVote_For(serv.ServerInfo.MyPid) //giving him self vote.
 			_ = serv.ServState.UpdateState(1)                    // update state to be a candidate.
 			serv.ServState.UpdateTerm(serv.Term() + 1)           //increment term by one.
+			mutex.Unlock()
 			var req *Request
 			req = &Request{Term: serv.Term(), CandidateId: serv.ServerInfo.Pid()}
 			t_data, err := json.Marshal(req)
@@ -274,7 +279,7 @@ func (serv *Server) StateFollower() {
 }
 
 //Server goes to Candidate state.
-func (serv *Server) StateCandidate() {
+func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 
 	//duration := 1*time.Second + time.Duration(rand.Intn(151))*time.Millisecond
 	//duration := 150*time.Millisecond + time.Duration(rand.Intn(151))*time.Millisecond //choose duration between 150-300ms.
@@ -310,8 +315,11 @@ func (serv *Server) StateCandidate() {
 								log.Println("Leader Declared:-", serv.ServerInfo.Pid(), "For Term:-", serv.Term())
 							}
 							//become leader.
+							timer.Stop() //stop timer.
+							mutex.Lock()
 							//RType.Leader = serv.ServerInfo.Pid()
 							serv.ServState.UpdateState(2) //update state to Leader.
+							mutex.Unlock()
 							// broadcast as a Leader.
 
 							x := &Request{Term: serv.Term(), CandidateId: serv.ServerInfo.Pid()}
@@ -323,7 +331,6 @@ func (serv *Server) StateCandidate() {
 							}
 							// braodcast the requestFor vote.
 							serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: string(data)}
-							timer.Stop() //stop timer.
 							return
 						}
 					} else {
@@ -355,10 +362,12 @@ func (serv *Server) StateCandidate() {
 							log.Println("In candidate receiving msgs: Marshaling error: ", reply)
 						}
 					}
+					mutex.Lock()
 					serv.ServState.UpdateVote_For(req.CandidateId)
 					serv.ServState.UpdateState(0) //become follower.
 					//serv.ServState.UpdateTerm(req.Term)
 					serv.ServState.followers = make(map[int]int) //clear followers list.
+					mutex.Unlock()
 					envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: string(data)}
 					serv.ServerInfo.Outbox() <- &envelope
 					if debug{
@@ -380,14 +389,16 @@ func (serv *Server) StateCandidate() {
 						log.Println("In candidate receiving msgs: Marshaling error: ", reply)
 					}
 				}
-				serv.ServState.UpdateVote_For(req.CandidateId)
+				timer.Stop() //stop timer.
+				mutex.Lock()
 				serv.ServState.UpdateState(0) //become follower.
+				serv.ServState.UpdateVote_For(req.CandidateId)
 				serv.ServState.UpdateTerm(req.Term)
 				serv.ServState.followers = make(map[int]int) //clear followers list.
+				mutex.Unlock()
 				envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: string(data)}
 				serv.ServerInfo.Outbox() <- &envelope
 				//fmt.Println("from:-", serv.ServerInfo.MyPid, "to", enve.Pid, envelope)
-				timer.Stop() //stop timer.
 				return
 			} else {
 				reply = &Reply{Term: req.Term, Result: false}
@@ -429,10 +440,12 @@ func (serv *Server) StateCandidate() {
 		if debug {
 			log.Println("Election Timer Timeout for:-", serv.ServerInfo.MyPid)
 		}
+		mutex.Lock()
 		//serv.ServState.UpdateVote_For(serv.ServerInfo.Pid()) //giving him self vote.
 		serv.ServState.UpdateVote_For(0)             //set vote to no-one.
 		serv.ServState.UpdateState(0)                //become follower.
 		serv.ServState.followers = make(map[int]int) //clear followers list.
+		mutex.Unlock()
 		timer.Stop()
 		return
 		/*
@@ -459,7 +472,7 @@ func (serv *Server) StateCandidate() {
 }
 
 //Server goes to Leader state.
-func (serv *Server) StateLeader() {
+func (serv *Server) StateLeader(mutex *sync.Mutex) {
 
 	//duration := 1*time.Second + time.Duration(rand.Intn(51))*time.Millisecond//heartbeat timer.
 	duration := time.Duration(rand.Intn(51)) * time.Millisecond //heartbeat time-duration.
@@ -496,10 +509,12 @@ func (serv *Server) StateLeader() {
 					n := int((len(serv.ServerInfo.PeerIds) + 1) / 2)
 					if n >= totalVotes {
 						//RType.Leader = 0
+						timer.Stop()                                 //stop timer.
+						mutex.Lock()
 						serv.ServState.UpdateVote_For(0)
 						serv.ServState.UpdateState(0)                //become follower.
 						serv.ServState.followers = make(map[int]int) //clear followers list.
-						timer.Stop()                                 //stop timer.
+						mutex.Unlock()
 						return
 					}
 				}
@@ -528,15 +543,17 @@ func (serv *Server) StateLeader() {
 						log.Println("In Leader receiving msgs: Marshaling error: ", reply)
 					}
 				}
-				serv.ServState.UpdateVote_For(req.CandidateId)
+				timer.Stop() //stop timer.
+				mutex.Lock()
 				serv.ServState.UpdateState(0) //become follower.
+				serv.ServState.UpdateVote_For(req.CandidateId)
 				serv.ServState.UpdateTerm(req.Term)
 				serv.ServState.followers = make(map[int]int) //clear followers list.
+				mutex.Unlock()
 				envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: string(data)}
 				serv.ServerInfo.Outbox() <- &envelope
 				//fmt.Println("from:-", serv.ServerInfo.MyPid, "to", enve.Pid, envelope)
-				serv.ServState.UpdateVote_For(enve.Pid)
-				timer.Stop() //stop timer.
+				//serv.ServState.UpdateVote_For(enve.Pid)
 				return
 			} else {
 				reply = &Reply{Term: req.Term, Result: false}
