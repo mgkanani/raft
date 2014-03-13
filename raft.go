@@ -5,8 +5,9 @@ import (
 	cluster "github.com/mgkanani/cluster"
 	"log"
 	rand "math/rand"
-	"time"
 	"sync"
+	"time"
+
 //	"fmt"
 )
 
@@ -67,8 +68,11 @@ func (serv *ServerState) UpdateTerm(term int) {
 }
 
 //Server update it's variable for which it has voted.
-func (serv *ServerState) UpdateVote_For(term int) {
-	serv.vote_for = term
+func (serv *ServerState) UpdateVote_For(pid int) {
+	serv.vote_for = pid
+	if debug {
+		//log.Println("Voted for :-", pid , "for term:-",serv.my_term)
+	}
 }
 
 //Server updates it's state and returns true if it is successful, otherwise false.
@@ -77,6 +81,9 @@ func (serv *ServerState) UpdateState(new_state int) bool {
 		return false
 	} else {
 		serv.my_state = new_state
+		if debug {
+			//	log.Println("New State :-", new_state)
+		}
 		//fmt.Println("stateUpdated to:-",new_state,"for",serv.ServerInfo.MyPid,serv)
 		return true
 	}
@@ -92,18 +99,22 @@ func (serv Server) Vote() int {
 	return serv.ServState.vote_for
 }
 
-func (rt RaftType) CurTerm() int {
+func (rt *RaftType) CurTerm() int {
+	if debug {
+		//log.Println("Asked for Term :-", rt.serv.ServState.my_term,rt.serv.ServerInfo.Pid())
+	}
 	return rt.serv.Term()
 }
 
-func (rt RaftType) Leader() int {
+func (rt *RaftType) Leader(id *int) {
 	if rt.serv.ServState.my_state == FOLLOWER {
 		//return rt.serv.ServState.vote_for
-		return 0;
+		*id = 0
+		return //0;
 	} else if rt.serv.ServState.my_state == LEADER {
-		return rt.serv.ServState.vote_for
-	}else{
-		return -1
+		*id = rt.serv.ServState.vote_for
+	} else {
+		*id = -1
 	}
 }
 
@@ -201,21 +212,25 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 				}
 				data := string(t_data)
 				timer.Reset(duration) //reset timer
-				mutex.Lock()
-				serv.ServState.UpdateTerm(req.Term)
-				serv.ServState.UpdateVote_For(req.CandidateId)
-				mutex.Unlock()
 				envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: data}
-				serv.ServerInfo.Outbox() <- &envelope
 				if enve.Pid == serv.Vote() {
 					if debug {
 						log.Println("Heartbeat Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid)
 					}
 				} else {
+					mutex.Lock()
+					serv.ServState.UpdateVote_For(req.CandidateId)
+					serv.ServState.UpdateTerm(req.Term)
+					if debug {
+						log.Println("Updated Term for :-", serv.ServerInfo.MyPid)
+					}
+					mutex.Unlock()
 					if debug {
 						log.Println("Higher Term:", req.Term, "Recvd for Follower -", serv.ServerInfo.MyPid)
 					}
 				}
+				serv.ServerInfo.Outbox() <- &envelope
+
 			} else { //getting request for vote
 				reply := &Reply{Term: req.Term, Result: false}
 				data, err := json.Marshal(reply)
@@ -509,7 +524,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 					n := int((len(serv.ServerInfo.PeerIds) + 1) / 2)
 					if n >= totalVotes {
 						//RType.Leader = 0
-						timer.Stop()                                 //stop timer.
+						timer.Stop() //stop timer.
 						mutex.Lock()
 						serv.ServState.UpdateVote_For(0)
 						serv.ServState.UpdateState(0)                //become follower.

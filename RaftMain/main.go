@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/rpc"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -17,10 +18,11 @@ var rafttype *Raft.RaftType
 
 type Test struct{}
 
-func (t *Test) GetStatus(id int, reply *Raft.Request) error {
+func (t *Test) GetStatus(id *int, reply *Raft.Request) error {
 	reply.Term = rafttype.CurTerm()
-	reply.CandidateId = rafttype.Leader()
-
+	//reply.CandidateId = rafttype.Leader()
+	rafttype.Leader(&reply.CandidateId)
+	//log.Println("Return",*id,reply)
 	return nil
 }
 
@@ -47,13 +49,16 @@ func main() {
 			if conn, err := listener.Accept(); err != nil {
 				log.Fatal("accept error: " + err.Error())
 			} else {
-				log.Printf("new connection established\n")
+				//log.Printf("new connection established\n")
 				go rpc.ServeConn(conn)
 			}
 		}
 
 		//go printData(rafttype,myid)
 		wg.Done()
+	} else {
+		log.Println("error generated in starting server according to configuration file")
+		os.Exit(1)
 	}
 	wg.Wait()
 	return
@@ -62,6 +67,6 @@ func main() {
 func printData(rafttype *Raft.RaftType, myid int) {
 	for {
 		time.Sleep(3100 * time.Millisecond)
-		println("[", myid, "]", "Current Term is :-", rafttype.CurTerm(), "Current Leader is:-", rafttype.Leader())
+		//println("[", myid, "]", "Current Term is :-", rafttype.CurTerm(), "Current Leader is:-", rafttype.Leader())
 	}
 }

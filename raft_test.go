@@ -2,14 +2,15 @@ package raft
 
 import (
 	"fmt"
+	"io"
+	"log"
+	"net/rpc"
 	"os"
 	"os/exec"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
-	"net/rpc"
-	"log"
 )
 
 var mutex1 = &sync.Mutex{}
@@ -17,7 +18,14 @@ var total_servers = 7
 var cmd map[int]*exec.Cmd
 var dbg = false
 
+type DevNull struct{}
+
+func (DevNull) Write(p []byte) (int, error) {
+	return len(p), nil
+}
+
 func TestRaft(t *testing.T) {
+	log.SetOutput(new(DevNull))
 	total_servers += 1
 	wg := new(sync.WaitGroup)
 	//temp := exec.Command("ls")
@@ -79,38 +87,41 @@ func TestRaft(t *testing.T) {
 }
 
 func checkingLeader() {
-	var reply Request
+	var reply = make(map[int]*Request)
 	leaders := make(map[int]map[int]int)
 	for {
 
-		id:=21340
+		id := 21340
 		for i := 1; i < total_servers; i++ {
-			id+=1
-			client, err := rpc.Dial("tcp", string("127.0.0.1:"+strconv.Itoa(id)))
-			if err != nil {
-				if dbg{
-					log.Println("dialing:", err)
-				}
-			}else{
+			reply[i] = &Request{}
+			id += 1
+			str := string("127.0.0.1:" + strconv.Itoa(id))
+			client, err := rpc.Dial("tcp", str)
+			if err != nil && (err != io.ErrUnexpectedEOF || err != io.EOF) {
+				//fmt.Println("dialing:", err)
+			} else {
 				// Synchronous call
-				err = client.Call("Test.GetStatus", 0, &reply)
+				err = client.Call("Test.GetStatus", &i, reply[i])
 				if err != nil {
-					if dbg{
-						log.Println("GetSTatus error:", err)
+					if dbg {
+						fmt.Println("GetSTatus error:", err)
 					}
-				}else{
-					fmt.Println(i,reply)
-					if reply.CandidateId >0 {
-						_,ok:=leaders[reply.Term]
-						if !ok{
-							leaders[reply.Term] = make(map[int]int)
+				} else {
+					//fmt.Println(i,reply[i] ,str)
+					if reply[i].CandidateId > 0 {
+						_, ok := leaders[reply[i].Term]
+						if !ok {
+							leaders[reply[i].Term] = make(map[int]int)
 						}
-						leaders[reply.Term][reply.CandidateId]=reply.CandidateId
+						leaders[reply[i].Term][reply[i].CandidateId] = reply[i].CandidateId
+						if len(leaders[reply[i].Term]) > 1 {
+							panic("more than One Leader")
+						}
 					}
 				}
 			}
 		}
-		fmt.Println(leaders);
+		//fmt.Println(leaders);
 		time.Sleep(1500 * time.Millisecond)
 	}
 }
@@ -119,6 +130,9 @@ func start(cmd *exec.Cmd) {
 	//err := cmd.Run()
 	err := cmd.Run()
 	if dbg {
+		if !cmd.ProcessState.Success() {
+			fmt.Println("error occured in running command", cmd.Path, cmd.Args)
+		}
 		fmt.Println("err is:", err)
 		fmt.Println("command was:", cmd, "\tstate:-", cmd.ProcessState, "\t process:-", cmd.Process)
 	}
