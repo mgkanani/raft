@@ -18,6 +18,21 @@ go install github.com/mgkanani/raft/RaftMain
 go test github.com/mgkanani/raft
 ```
 
+## To modify certain parameters  OR  Detailed Testing:-
+```
+to see all logs and what is happening during execution,
+      modify RaftMain/main.go file,line-37 update to true instead of false
+      modify raft_test.go,line-19, do same as above.
+      
+
+What is tested during testing or how testing is performed on servers:-
+  -All servers are started
+  -at every 5-sec 1-server will go down
+  -all servers exactly 3-times goes down during testing.
+  -at every 1.5sec who is Leader is checked and checked whether there are  more than one Leader.
+      If there is more than one Leader is found , then test will return panic.
+```
+
 
 ##Documentation reference:-
 [![GoDoc](https://godoc.org/github.com/mgkanani/raft?status.png)](https://godoc.org/github.com/mgkanani/raft)
@@ -82,7 +97,7 @@ now use:-```godoc math/rand ```
 
 [http://www.sunzhongkui.me/rpc-communication-in-go-language/]
 
-[http://play.golang.org/p/5LIA41Iqfp] -> to discard all log data
+[http://play.golang.org/p/5LIA41Iqfp] -> to discard all log data ( this is done only for raft_test.go file.)
 
 #Mistakes(very silly but consumes much time) during coding which takes hours to find and resolve.
 
