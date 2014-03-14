@@ -16,12 +16,17 @@ var total_servers = 7
 
 var rafttype *Raft.RaftType
 
+type RPC_Msg struct{
+	Term int
+	Leader int
+}
+
+
 type Test struct{}
 
-func (t *Test) GetStatus(id *int, reply *Raft.Request) error {
+func (t *Test) GetStatus(id *int, reply RPC_Msg) error {
 	reply.Term = rafttype.CurTerm()
-	//reply.CandidateId = rafttype.Leader()
-	rafttype.Leader(&reply.CandidateId)
+	rafttype.Leader(&reply.Leader)
 	//log.Println("Return",*id,reply)
 	return nil
 }

@@ -18,6 +18,11 @@ var total_servers = 7
 var cmd map[int]*exec.Cmd
 var dbg = false
 
+type RPC_Msg struct{
+	Term int
+	Leader int
+}
+
 type DevNull struct{}
 
 func (DevNull) Write(p []byte) (int, error) {
@@ -87,13 +92,13 @@ func TestRaft(t *testing.T) {
 }
 
 func checkingLeader() {
-	var reply = make(map[int]*Request)
+	var reply = make(map[int]*RPC_Msg)
 	leaders := make(map[int]map[int]int)
 	for {
 
 		id := 21340
 		for i := 1; i < total_servers; i++ {
-			reply[i] = &Request{}
+			reply[i] = &RPC_Msg{}
 			id += 1
 			str := string("127.0.0.1:" + strconv.Itoa(id))
 			client, err := rpc.Dial("tcp", str)
@@ -108,12 +113,12 @@ func checkingLeader() {
 					}
 				} else {
 					//fmt.Println(i,reply[i] ,str)
-					if reply[i].CandidateId > 0 {
+					if reply[i].Leader > 0 {
 						_, ok := leaders[reply[i].Term]
 						if !ok {
 							leaders[reply[i].Term] = make(map[int]int)
 						}
-						leaders[reply[i].Term][reply[i].CandidateId] = reply[i].CandidateId
+						leaders[reply[i].Term][reply[i].Leader] = reply[i].Leader
 						if len(leaders[reply[i].Term]) > 1 {
 							panic("more than One Leader")
 						}
