@@ -19,7 +19,7 @@ var rafttype *Raft.RaftType
 type Test struct{}
 
 func (t *Test) GetStatus(id *int, reply *Raft.Request) error {
-	reply.Term = rafttype.CurTerm()
+	reply.Term = rafttype.Term()
 	//reply.CandidateId = rafttype.Leader()
 	rafttype.Leader(&reply.CandidateId)
 	//log.Println("Return",*id,reply)
@@ -34,7 +34,7 @@ func main() {
 	var valid bool
 	//ch := make(chan int)
 	//valid := InitServer(myid, "./config.json",true , ch)
-	valid, rafttype = Raft.InitServer(myid, "./config.json", false)
+	valid, rafttype = Raft.InitServer(myid, "./config.json", true)
 
 	if valid {
 		wg.Add(1)
@@ -67,6 +67,6 @@ func main() {
 func printData(rafttype *Raft.RaftType, myid int) {
 	for {
 		time.Sleep(3100 * time.Millisecond)
-		//println("[", myid, "]", "Current Term is :-", rafttype.CurTerm(), "Current Leader is:-", rafttype.Leader())
+		//println("[", myid, "]", "Current Term is :-", rafttype.Term(), "Current Leader is:-", rafttype.Leader())
 	}
 }

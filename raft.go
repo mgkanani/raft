@@ -16,9 +16,37 @@ type RaftType struct {
 }
 
 type Raft interface {
-	CurTerm() int //returns the current term number.
+	Term() int //returns the current term number.
 	Leader() int  //returns id of a leader if there exist, otherwise returns -1;
+
+   // Mailbox for state machine layer above to send commands of any
+   // kind, and to have them replicated by raft.  If the server is not
+   // the leader, the message will be silently dropped.
+   Outbox() chan<- interface{}
+
+   //Mailbox for state machine layer above to receive commands. These
+   //are guaranteed to have been replicated on a majority
+   //Inbox() <-chan *LogItem
+   Inbox() <-chan interface{}
+
+  //Remove items from 0 .. index (inclusive), and reclaim disk
+   //space. This is a hint, and there's no guarantee of immediacy since
+   //there may be some servers that are lagging behind).
+
+   DiscardUpto(index int64)
 }
+
+
+
+// Identifies an entry in the log
+type LogEntry struct{
+   // An index into an abstract 2^64 size array
+   Index  int64
+
+    // The data that was supplied to raft's inbox
+    Data    interface{}
+}
+
 
 //Msg Type,whether it is request or reply.
 type MsgType struct {
@@ -90,7 +118,7 @@ func (serv *ServerState) UpdateState(new_state int) bool {
 }
 
 //returns the current Term number.
-func (serv Server) Term() int {
+func (serv Server) Cur_Term() int {
 	return serv.ServState.my_term
 }
 
@@ -99,11 +127,11 @@ func (serv Server) Vote() int {
 	return serv.ServState.vote_for
 }
 
-func (rt *RaftType) CurTerm() int {
+func (rt *RaftType) Term() int {
 	if debug {
 		//log.Println("Asked for Term :-", rt.serv.ServState.my_term,rt.serv.ServerInfo.Pid())
 	}
-	return rt.serv.Term()
+	return rt.serv.Cur_Term()
 }
 
 func (rt *RaftType) Leader(id *int) {
@@ -194,10 +222,10 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 			}
 			//fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid, " Request is:-.", req)
 
-			if req.Term < serv.Term() {
+			if req.Term < serv.Cur_Term() {
 				//just drop the message or reject the request.
 
-			} else if (enve.Pid == serv.Vote() && req.Term == serv.Term()) || req.Term > serv.Term() {
+			} else if (enve.Pid == serv.Vote() && req.Term == serv.Cur_Term()) || req.Term > serv.Cur_Term() {
 				//heartbeat received or higher term received, reset timer,send accept for request.
 				timer.Reset(duration)
 				//fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid, " Request Recieved.", req)
@@ -268,10 +296,10 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 			mutex.Lock()
 			serv.ServState.UpdateVote_For(serv.ServerInfo.MyPid) //giving him self vote.
 			_ = serv.ServState.UpdateState(1)                    // update state to be a candidate.
-			serv.ServState.UpdateTerm(serv.Term() + 1)           //increment term by one.
+			serv.ServState.UpdateTerm(serv.Cur_Term() + 1)           //increment term by one.
 			mutex.Unlock()
 			var req *Request
-			req = &Request{Term: serv.Term(), CandidateId: serv.ServerInfo.Pid()}
+			req = &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
 			t_data, err := json.Marshal(req)
 			if err != nil {
 				if debug {
@@ -314,7 +342,7 @@ func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 				}
 			} else {
 				//log.Println("Candidate : Serverid-", serv.ServerInfo.MyPid,"Leader is:-" ,RType.Leader,"Reply Recvd:-", reply, enve, enve.Msg.(string))
-				if serv.Term() == reply.Term {
+				if serv.Cur_Term() == reply.Term {
 					//reply for current term recvd.
 					if reply.Result {
 						//true reply recvd.
@@ -327,7 +355,7 @@ func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 						if n < totalVotes {
 							//quorum.
 							if debug {
-								log.Println("Leader Declared:-", serv.ServerInfo.Pid(), "For Term:-", serv.Term())
+								log.Println("Leader Declared:-", serv.ServerInfo.Pid(), "For Term:-", serv.Cur_Term())
 							}
 							//become leader.
 							timer.Stop() //stop timer.
@@ -337,7 +365,7 @@ func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 							mutex.Unlock()
 							// broadcast as a Leader.
 
-							x := &Request{Term: serv.Term(), CandidateId: serv.ServerInfo.Pid()}
+							x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
 							data, err := json.Marshal(x)
 							if err != nil {
 								if debug {
@@ -368,7 +396,7 @@ func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 			//request received.
 			//fmt.Println("Candidate : Serverid-", serv.ServerInfo.MyPid, "Request Recvd:-", req, enve)
 			var reply *Reply
-			/*	if req.CandidateId == RType.Leader && serv.Term() == req.Term {
+			/*	if req.CandidateId == RType.Leader && serv.Cur_Term() == req.Term {
 					//Leader has send the message.
 					reply = &Reply{Term: req.Term, Result: true}
 					data, err := json.Marshal(reply)
@@ -390,9 +418,9 @@ func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 					}
 					timer.Stop() //stop timer.
 					return
-				} else if req.Term >= serv.Term()
+				} else if req.Term >= serv.Cur_Term()
 			*/
-			if req.Term > serv.Term() {
+			if req.Term > serv.Cur_Term() {
 				// getting higher term.
 				if debug {
 					log.Println("Higher Term Recvd for Candidate ", serv.ServerInfo.MyPid, "from", enve.Pid)
@@ -426,13 +454,13 @@ func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 				envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: string(data)}
 				serv.ServerInfo.Outbox() <- &envelope
 				if debug {
-					log.Println("Request rcvd from -", enve.Pid, "to Cand(", serv.Term(), ") -", serv.ServerInfo.MyPid, "for Lower or equal Term:", reply.Term)
+					log.Println("Request rcvd from -", enve.Pid, "to Cand(", serv.Cur_Term(), ") -", serv.ServerInfo.MyPid, "for Lower or equal Term:", reply.Term)
 				}
 				/*
 					//now send request message and becareful about not to update term.
 
 					ok := serv.ServState.UpdateState(1) // update state to be a candidate.
-					x := &Request{Term: serv.Term(), CandidateId: serv.ServerInfo.Pid()}
+					x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
 					data, err = json.Marshal(x)
 					//fmt.Println("data is:-", x)
 					if err != nil {
@@ -468,8 +496,8 @@ func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 			if !ok {
 				println("error in updating state")
 			}*/
-		//serv.ServState.UpdateTerm(serv.Term() + 1) //increment term by one.
-		//x := &Request{Term: serv.Term(), CandidateId: serv.ServerInfo.Pid()}
+		//serv.ServState.UpdateTerm(serv.Cur_Term() + 1) //increment term by one.
+		//x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
 		//data, err := json.Marshal(x)
 		//fmt.Println("data is:-", x)
 		//if err != nil {
@@ -506,7 +534,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 				}
 				timer.Stop() //stop timer.
 				return
-			} else if reply.Term == serv.Term() {
+			} else if reply.Term == serv.Cur_Term() {
 				//fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid, "Reply Recvd:-", reply, enve, enve.Msg.(string))
 				if reply.Result { //confirmation received
 					serv.ServState.followers[enve.Pid] = enve.Pid
@@ -545,11 +573,11 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 			//request received.
 			//fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid, "Request Recvd:-", req, enve)
 			var reply *Reply
-			if req.Term > serv.Term() {
+			if req.Term > serv.Cur_Term() {
 				// getting higher term and it has not voted before.
 				//RType.Leader = 0 //reset leader.
 				if debug {
-					log.Println("Leader(with Term", serv.Term(), ") :", serv.ServerInfo.MyPid, "has received higher term", req.Term, "from", enve.Pid)
+					log.Println("Leader(with Term", serv.Cur_Term(), ") :", serv.ServerInfo.MyPid, "has received higher term", req.Term, "from", enve.Pid)
 				}
 				reply = &Reply{Term: req.Term, Result: true}
 				data, err := json.Marshal(reply)
@@ -581,11 +609,11 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 				envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: string(data)}
 				serv.ServerInfo.Outbox() <- &envelope
 				if debug {
-					log.Println("Leader(", serv.Term(), ") :", serv.ServerInfo.MyPid, "has received lesser or equal term req from ", enve.Pid, req.Term)
+					log.Println("Leader(", serv.Cur_Term(), ") :", serv.ServerInfo.MyPid, "has received lesser or equal term req from ", enve.Pid, req.Term)
 				}
 				//now send request message and becareful about not to update term.
 
-				x := &Request{Term: serv.Term(), CandidateId: serv.ServerInfo.Pid()}
+				x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
 				data, err = json.Marshal(x)
 				//fmt.Println("data is:-", x)
 				if err != nil {
@@ -601,10 +629,10 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 
 	case <-timer.C:
 		//send heartbeat to all servers
-		x := &Request{Term: serv.Term(), CandidateId: serv.ServerInfo.Pid()}
+		x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
 		data, err := json.Marshal(x)
 		if debug {
-			log.Println("Timeout for Leader:-", serv.ServerInfo.Pid(), "Term", serv.Term())
+			log.Println("Timeout for Leader:-", serv.ServerInfo.Pid(), "Term", serv.Cur_Term())
 		}
 		if err != nil {
 			if debug {
