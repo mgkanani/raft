@@ -11,6 +11,18 @@ import (
 //	"fmt"
 )
 
+const (
+	FOLLOWER  = 0
+	CANDIDATE = 1
+	LEADER    = 2
+
+	REQ = 0
+	REP = 1
+	APP = 2
+)
+
+var debug = true
+
 type RaftType struct {
 	serv *Server
 }
@@ -37,7 +49,6 @@ type Raft interface {
 }
 
 
-
 // Identifies an entry in the log
 type LogEntry struct{
    // An index into an abstract 2^64 size array
@@ -54,6 +65,17 @@ type MsgType struct {
 	Msg   interface{} //actual object/message.
 }
 
+
+type AppendEntries struct{
+	Term int
+	LeaderId int
+	PrevLogIndex int64
+	PrevLogTerm int
+	Entries map[int64]interface{}
+	LeaderCommitIdex int64
+}
+
+
 type Reply struct {
 	//Reply strucrure.
 	Term   int
@@ -64,6 +86,8 @@ type Request struct {
 	//Request message structure.
 	Term        int //Request for vote for this Term.
 	CandidateId int //Requested candidate-id.
+	LastLogIndex int64
+	LastLogTerm int64
 }
 
 // Server State data structure
@@ -72,15 +96,14 @@ type ServerState struct {
 	vote_for  int //value will be pid of leader.
 	my_state  int
 	followers map[int]int
+	Log map[int64]interface{}
+
+	CommitIndex int64
+	LastApplied int64
+
+	NextIndex map[int64]interface{}
+	MatchIndex map[int64]interface{}
 }
-
-const (
-	FOLLOWER  = 0
-	CANDIDATE = 1
-	LEADER    = 2
-)
-
-var debug = true
 
 type Server struct {
 	ServState  ServerState        //Server-State informtion are stored.
