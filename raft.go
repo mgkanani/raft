@@ -2,13 +2,11 @@ package raft
 
 import (
 	"encoding/json"
-	"encoding/gob"
 	cluster "github.com/mgkanani/cluster"
 	"log"
 	rand "math/rand"
 	"sync"
 	"time"
-	"bytes"
 
 //	"fmt"
 )
@@ -152,35 +150,6 @@ func (rt *RaftType) setServer(serv *Server) {
 	rt.serv = serv
 }
 
-
-func init(){
-	gob.Register(Request{})
-	gob.Register(Reply{})
-}
-
-
-func EncodeReq(req *Request) *bytes.Buffer{
-    var data *bytes.Buffer       
-    enc := gob.NewEncoder(data) // Will write to data
-    err := enc.Encode(req)
-    if err != nil {
-        log.Fatal("encode error:", err)
-    }
-    log.Println("encoding :", req)
-    return data;
-}
-
-func DecodeReq(data *bytes.Buffer) *Request{
-    // Decode (receive) the value.
-    dec := gob.NewDecoder(data) 
-    var req Request
-    err := dec.Decode(&req)
-    if err != nil {
-        log.Fatal("decode error:", err)
-    }
-    return &req;
-}
-
 //Initializes the servers with given parameters.
 func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 	/*	fle, err := os.OpenFile("log_pid_"+strconv.Itoa(pid) ,os.O_WRONLY | os.O_CREATE | os.O_APPEND, 0666)
@@ -242,18 +211,6 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 
 	select { //used for selecting channel for given event.
 	case enve := <-serv.ServerInfo.Inbox():
-		log.Println("received",enve)
-
-		switch u := enve.Msg.(type) {
-		        case Request:
-				log.Println("Request type received",enve)
-				break;
-		        default:
-				log.Println("unknown type received",u)
-				break;
-	        }
-
-
 		if enve.MsgId == 0 {
 			//Request Rcvd.
 			var req Request
@@ -343,19 +300,18 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 			mutex.Unlock()
 			var req *Request
 			req = &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
-			//t_data, err := json.Marshal(req)
-			//if err != nil {
+			t_data, err := json.Marshal(req)
+			if err != nil {
 				if debug {
-				//	log.Println("Follower:- After Awaking :- Marshaling error: ", err)
+					log.Println("Follower:- After Awaking :- Marshaling error: ", err)
 				}
-			//} else {
-				//data := string(t_data)
-				data := EncodeReq(req)
+			} else {
+				data := string(t_data)
 				// braodcast the requestFor vote.
 				envelope := cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: data}
 				serv.ServerInfo.Outbox() <- &envelope
 				//fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid, "After Awaking,req sent for vote", req, "actual sent", data, envelope, serv)
-			//}
+			}
 			timer.Stop() //stop timer.
 			return
 		}
