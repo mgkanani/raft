@@ -26,39 +26,38 @@ var debug = true
 
 type RaftType struct {
 	serv *Server
-	in        chan *LogItem         //for input channel(Inbox)
-	out       chan *interface{}         //for output channel(OutBox)
+	in   chan *LogItem     //for input channel(Inbox)
+	out  chan *interface{} //for output channel(OutBox)
 
 }
 
 type Raft interface {
-	Term() int //returns the current term number.
-	Leader() int  //returns id of a leader if there exist, otherwise returns -1;
+	Term() int   //returns the current term number.
+	Leader() int //returns id of a leader if there exist, otherwise returns -1;
 
-   // Mailbox for state machine layer above to send commands of any
-   // kind, and to have them replicated by raft.  If the server is not
-   // the leader, the message will be silently dropped.
-   Outbox() chan<- interface{}
+	// Mailbox for state machine layer above to send commands of any
+	// kind, and to have them replicated by raft.  If the server is not
+	// the leader, the message will be silently dropped.
+	Outbox() chan<- interface{}
 
-   //Mailbox for state machine layer above to receive commands. These
-   //are guaranteed to have been replicated on a majority
-   Inbox() <-chan *LogItem
-   //Inbox() <-chan interface{}
+	//Mailbox for state machine layer above to receive commands. These
+	//are guaranteed to have been replicated on a majority
+	Inbox() <-chan *LogItem
+	//Inbox() <-chan interface{}
 
-  //Remove items from 0 .. index (inclusive), and reclaim disk
-   //space. This is a hint, and there's no guarantee of immediacy since
-   //there may be some servers that are lagging behind).
+	//Remove items from 0 .. index (inclusive), and reclaim disk
+	//space. This is a hint, and there's no guarantee of immediacy since
+	//there may be some servers that are lagging behind).
 
-   DiscardUpto(index int64)
+	DiscardUpto(index int64)
 }
 
-
 func (raft *RaftType) Outbox() chan *interface{} {
-	return raft.out;
+	return raft.out
 }
 
 func (raft *RaftType) Inbox() chan *LogItem {
-	return raft.in;
+	return raft.in
 }
 
 /*
@@ -70,37 +69,34 @@ func (raft RaftType) handleOutbox() {
 */
 
 func (raft *RaftType) handleInbox() {
-                log.Println("In inbox")
-	for{
-		req:= <-raft.in //Log Item received.
-                log.Println("data arrived",req)
-		if raft.serv.ServState.my_state != LEADER{ //If it is leader.
-        	        t_data, err := json.Marshal(req)
-               	        if err != nil {
-                       	        if debug {
-                                        log.Println("In handleInbox:- Marshaling error: ", err)
-       	                        }
-               	        } else {
-                       	        data := string(t_data)
-                               	// braodcast the requestFor vote.
-                                envelope := cluster.Envelope{Pid: cluster.BROADCAST, MsgId: L_I, Msg: data}
-       	                        raft.serv.ServerInfo.Inbox() <- &envelope
+	log.Println("In inbox")
+	for {
+		req := <-raft.in //Log Item received.
+		log.Println("data arrived", req)
+		if raft.serv.ServState.my_state != LEADER { //If it is leader.
+			t_data, err := json.Marshal(req)
+			if err != nil {
+				if debug {
+					log.Println("In handleInbox:- Marshaling error: ", err)
+				}
+			} else {
+				data := string(t_data)
+				// braodcast the requestFor vote.
+				envelope := cluster.Envelope{Pid: cluster.BROADCAST, MsgId: L_I, Msg: data}
+				raft.serv.ServerInfo.Inbox() <- &envelope
 			}
 		}
 	}
 }
 
-
-
 // Identifies an entry in the log
-type LogItem struct{
-   // An index into an abstract 2^64 size array
-   Index  int64
+type LogItem struct {
+	// An index into an abstract 2^64 size array
+	Index int64
 
-    // The data that was supplied to raft's inbox
-    Data    interface{}
+	// The data that was supplied to raft's inbox
+	Data interface{}
 }
-
 
 //Msg Type,whether it is request or reply.
 type MsgType struct {
@@ -108,16 +104,14 @@ type MsgType struct {
 	Msg   interface{} //actual object/message.
 }
 
-
-type AppendEntries struct{
-	Term int
-	LeaderId int
-	PrevLogIndex int64
-	PrevLogTerm int
-	Entries map[int64]interface{}
+type AppendEntries struct {
+	Term             int
+	LeaderId         int
+	PrevLogIndex     int64
+	PrevLogTerm      int
+	Entries          map[int64]interface{}
 	LeaderCommitIdex int64
 }
-
 
 type Reply struct {
 	//Reply strucrure.
@@ -127,10 +121,10 @@ type Reply struct {
 
 type Request struct {
 	//Request message structure.
-	Term        int //Request for vote for this Term.
-	CandidateId int //Requested candidate-id.
+	Term         int //Request for vote for this Term.
+	CandidateId  int //Requested candidate-id.
 	LastLogIndex int64
-	LastLogTerm int64
+	LastLogTerm  int64
 }
 
 // Server State data structure
@@ -139,13 +133,13 @@ type ServerState struct {
 	vote_for  int //value will be pid of leader.
 	my_state  int
 	followers map[int]int
-	Log map[int64]interface{}
+	Log       map[int64]interface{}
 
 	CommitIndex int64 //index of highest logentry known to be committed.
 	LastApplied int64 // index of highest log entry applied to state machine.
 
 	//for each server index of the
-	NextIndex map[int]interface{} // next log entry to send
+	NextIndex  map[int]interface{} // next log entry to send
 	MatchIndex map[int]interface{} // highest log entry known to be replicated on server
 }
 
@@ -230,7 +224,7 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 	debug = dbg
 	serv := new(Server)
 	rtype := RaftType{}
-	rtype.in,rtype.out = make(chan *LogItem) , make(chan *interface{})
+	rtype.in, rtype.out = make(chan *LogItem), make(chan *interface{})
 	rtype.setServer(serv)
 
 	serv.ServerInfo = cluster.New(pid, file)
@@ -345,11 +339,11 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 				}
 			}
 		} else if enve.MsgId == REP { //reply recvd. drop it.
-		} else {// request for append entries recieved.
-			log.Println("Server sent Append Request",enve);
+		} else { // request for append entries recieved.
+			log.Println("Server sent Append Request", enve)
 			//app:= enve.Msg.(AppendEntries)
-			log.Println(enve.Msg);
-			
+			log.Println(enve.Msg)
+
 		}
 
 	//case <-time.After(2000+time.Duration(rand.Intn(151)*20) * time.Millisecond):
@@ -371,7 +365,7 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 			mutex.Lock()
 			serv.ServState.UpdateVote_For(serv.ServerInfo.MyPid) //giving him self vote.
 			_ = serv.ServState.UpdateState(1)                    // update state to be a candidate.
-			serv.ServState.UpdateTerm(serv.Cur_Term() + 1)           //increment term by one.
+			serv.ServState.UpdateTerm(serv.Cur_Term() + 1)       //increment term by one.
 			mutex.Unlock()
 			var req *Request
 			req = &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
@@ -700,8 +694,8 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 				serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: string(data)}
 			}
 
-		}else{
-			log.Println("Leader:- Request from client received",enve)
+		} else {
+			log.Println("Leader:- Request from client received", enve)
 		}
 
 	case <-timer.C:

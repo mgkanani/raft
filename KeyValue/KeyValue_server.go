@@ -2,10 +2,10 @@ package main
 
 import (
 	"flag"
-	Raft "github.com/mgkanani/raft"
-	"log"
 	"fmt"
+	Raft "github.com/mgkanani/raft"
 	"io"
+	"log"
 	"net"
 	"os"
 	"strings"
@@ -32,12 +32,12 @@ func main() {
 	addr_port, err := net.ResolveTCPAddr("tcp", socket)
 	if err != nil {
 		fmt.Println("Address format is ipaddr:port_num")
-		return;
+		return
 	}
 	ln, err := net.ListenTCP("tcp", addr_port)
 	if err != nil {
 		fmt.Println("use different port number, given port already in use.\nin", err.Error())
-		return;
+		return
 	}
 
 	fmt.Println("Listening at addr:port", addr_port)
@@ -52,18 +52,18 @@ func main() {
 	//valid := InitServer(myid, "./config.json",true , ch)
 	valid, rafttype = Raft.InitServer(myid, "./config.json", true)
 
-	litem:=&Raft.LogItem{Index:1,Data:"hello"}
-	fmt.Println("ch1",rafttype)
-	in:=rafttype.Inbox()
-	fmt.Println("ch2",in)
+	litem := &Raft.LogItem{Index: 1, Data: "hello"}
+	fmt.Println("ch1", rafttype)
+	in := rafttype.Inbox()
+	fmt.Println("ch2", in)
 	in <- litem
-	fmt.Println("ch3",in)
+	fmt.Println("ch3", in)
 	if valid {
 		for {
-			fmt.Println("ch4",in)
-        		in <- litem
+			fmt.Println("ch4", in)
+			in <- litem
 			conn, err := ln.Accept()
-			fmt.Println("ch5",in)
+			fmt.Println("ch5", in)
 			if err != nil {
 				fmt.Print(err)
 				return
@@ -134,10 +134,10 @@ func handle_client(c net.Conn) {
 
 		case action == "set":
 			val := str[2]
-			temp:=make(map[string]string);
-			temp[key]=val
-			litem:=&Raft.LogItem{Index:1,Data:&temp}
-			rafttype.Inbox()<-litem
+			temp := make(map[string]string)
+			temp[key] = val
+			litem := &Raft.LogItem{Index: 1, Data: &temp}
+			rafttype.Inbox() <- litem
 			mut.Lock()
 			//Map[key] = val
 			Set_Val(key, val)
@@ -174,20 +174,19 @@ func handle_client(c net.Conn) {
 			}
 			fmt.Printf("SERVER: sent %v bytes\n", n)
 
-                case action == "delete":
-                        mut.Lock()
-                        Delete(key)
-                        mut.Unlock()
-                        fmt.Printf("delete Map[%s]", key)
+		case action == "delete":
+			mut.Lock()
+			Delete(key)
+			mut.Unlock()
+			fmt.Printf("delete Map[%s]", key)
 
-                case action == "rename":
+		case action == "rename":
 			keyfrom := str[1]
-                        keyto := str[2]
-                        mut.Lock()
-                        Rename(keyfrom, keyto)
-                        mut.Unlock()
-                        fmt.Printf("Rename from Map[%s] to Map[%s]", keyfrom, keyto)
-
+			keyto := str[2]
+			mut.Lock()
+			Rename(keyfrom, keyto)
+			mut.Unlock()
+			fmt.Printf("Rename from Map[%s] to Map[%s]", keyfrom, keyto)
 
 		}
 	}
