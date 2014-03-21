@@ -16,10 +16,10 @@ const (
 	CANDIDATE = 1
 	LEADER    = 2
 
-	REQ = 0
-	REP = 1
-	APP = 2
-	L_I = 3 //LogItem received at leader. only used for leader.
+	REQ   = 0
+	REP   = 1
+	APP   = 2
+	L_I   = 3 //LogItem received at leader. only used for leader.
 	HEART = 4 //used to identify heartbeat message from Leader.
 )
 
@@ -54,17 +54,16 @@ type Raft interface {
 }
 
 func (ser *Server) DiscardUpto(index int64) {
-//discards all log entries after given index means >Index will be droped for follower only.
-	if ser.ServState.my_state == FOLLOWER{
-	for k := int64(len(ser.ServState.Log));k>index;k-- {
-	    log.Println("deleting entry",k,ser.ServState.Log[k])
-	    delete(ser.ServState.Log, k)
-	}
+	//discards all log entries after given index means >Index will be droped for follower only.
+	if ser.ServState.my_state == FOLLOWER {
+		for k := int64(len(ser.ServState.Log)); k > index; k-- {
+			log.Println("deleting entry", k, ser.ServState.Log[k])
+			delete(ser.ServState.Log, k)
+		}
 
 	}
 
 }
-
 
 func (raft *RaftType) Outbox() chan *interface{} {
 	return raft.out
@@ -121,23 +120,22 @@ type MsgType struct {
 }
 
 type AppendEntries struct {
-	Term             int
-	LeaderId         int
-	PrevLogIndex     int64
-	PrevLogTerm      int
-//	Entries          map[int64]LogItem// this will not work with json because of int64 as a key in map.
-	Entries		 LogItem
+	Term         int
+	LeaderId     int
+	PrevLogIndex int64
+	PrevLogTerm  int
+	//	Entries          map[int64]LogItem// this will not work with json because of int64 as a key in map.
+	Entries          LogItem
 	LeaderCommitIdex int64
 }
 
 type HeartBeat struct {
-        Term             int
-        LeaderId         int
-        PrevLogIndex     int64
-        PrevLogTerm      int
-        LeaderCommitIdex int64
+	Term             int
+	LeaderId         int
+	PrevLogIndex     int64
+	PrevLogTerm      int
+	LeaderCommitIdex int64
 }
-
 
 type Reply struct {
 	//Reply strucrure.
@@ -263,12 +261,12 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 		log.Println(rtype, serv.ServerInfo.Valid, serv)
 	}
 	if serv.ServerInfo.Valid {
-		if pid==1{
-			serv.ServState.Log[1]=LogItem{Index:1,Term:1,Data:"a"}
-			serv.ServState.Log[2]=LogItem{Index:2,Term:1,Data:"b"}
-			serv.ServState.Log[3]=LogItem{Index:3,Term:1,Data:"c"}
-			serv.ServState.Log[4]=LogItem{Index:4,Term:1,Data:"d"}
-		log.Println(rtype, serv.ServerInfo.Valid, serv)
+		if pid == 1 {
+			serv.ServState.Log[1] = LogItem{Index: 1, Term: 1, Data: "a"}
+			serv.ServState.Log[2] = LogItem{Index: 2, Term: 1, Data: "b"}
+			serv.ServState.Log[3] = LogItem{Index: 3, Term: 1, Data: "c"}
+			serv.ServState.Log[4] = LogItem{Index: 4, Term: 1, Data: "d"}
+			log.Println(rtype, serv.ServerInfo.Valid, serv)
 		}
 		go serv.start()
 		go rtype.handleInbox()
@@ -305,14 +303,14 @@ func (serv *Server) start() {
 //Server goes to Follower state.
 func (serv *Server) StateFollower(mutex *sync.Mutex) {
 	//duration := 1*time.Second + time.Duration(rand.Intn(151))*time.Millisecond
-	duration := 600*time.Millisecond
+	duration := 600 * time.Millisecond
 	//duration := time.Duration((rand.Intn(50)+serv.ServerInfo.MyPid*60)*12)*time.Millisecond
 	timer := time.NewTimer(duration)
 
 	select { //used for selecting channel for given event.
 	case enve := <-serv.ServerInfo.Inbox():
-	    switch enve.MsgId {
-		case REQ :
+		switch enve.MsgId {
+		case REQ:
 			//Request Rcvd.
 			var req Request
 			err := json.Unmarshal([]byte(enve.Msg.(string)), &req) //decode message into Envelope object.
@@ -341,19 +339,19 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 				}
 				data := string(t_data)
 				envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: data}
-					mutex.Lock()
-					serv.ServState.UpdateVote_For(req.CandidateId)
-					serv.ServState.UpdateTerm(req.Term)
-					if debug {
-						//log.Println("Updated Term for :-", serv.ServerInfo.MyPid)
-					}
-					mutex.Unlock()
-					if debug {
-						log.Println("Higher Term:", req.Term, "Recvd for Follower -", serv.ServerInfo.MyPid)
-					}
+				mutex.Lock()
+				serv.ServState.UpdateVote_For(req.CandidateId)
+				serv.ServState.UpdateTerm(req.Term)
+				if debug {
+					//log.Println("Updated Term for :-", serv.ServerInfo.MyPid)
+				}
+				mutex.Unlock()
+				if debug {
+					log.Println("Higher Term:", req.Term, "Recvd for Follower -", serv.ServerInfo.MyPid)
+				}
 				serv.ServerInfo.Outbox() <- &envelope
 
-			} else if !(enve.Pid == serv.Vote() && req.Term == serv.Cur_Term()){ //getting request for vote,reject the request
+			} else if !(enve.Pid == serv.Vote() && req.Term == serv.Cur_Term()) { //getting request for vote,reject the request
 				reply := &Reply{Term: req.Term, Result: false}
 				data, err := json.Marshal(reply)
 				if err != nil {
@@ -369,46 +367,46 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 				}
 			}
 
-			break;
+			break
 
-		case REP :
-			 //reply recvd. drop it.
-			break;
+		case REP:
+			//reply recvd. drop it.
+			break
 
-		case HEART :
+		case HEART:
 			//HeartBeat rcvd.
 			timer.Reset(duration) //reset timer
 			var hrt HeartBeat
-                        err := json.Unmarshal([]byte(enve.Msg.(string)), &hrt) //decode message into Envelope object.
-                        if err != nil {                                        //error into parsing/decoding
-                                if debug {
-                                        log.Println("Follower,HeartBeat: Unmarshaling error:-\t", err)
-                                }
-                        }
+			err := json.Unmarshal([]byte(enve.Msg.(string)), &hrt) //decode message into Envelope object.
+			if err != nil {                                        //error into parsing/decoding
+				if debug {
+					log.Println("Follower,HeartBeat: Unmarshaling error:-\t", err)
+				}
+			}
 			if debug {
-                        	log.Println("Heartbeat Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid,hrt)
-                        }
+				log.Println("Heartbeat Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid, hrt)
+			}
 			// send positive reply.
-                                var reply *Reply
-                                reply = &Reply{Term: hrt.Term, Result: true}
-                                t_data, err := json.Marshal(reply)
-                                if err != nil {
-                                        if debug {
-                                                log.Println("Follower,HeartBeat:- getting higher term:- Marshaling error: ", err)
-                                        }
-                                }
-                                data := string(t_data)
-                                envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: data}
-				serv.ServerInfo.Outbox() <- &envelope
-			break;
-		 case APP :
-			 // request for append entries recieved.
+			var reply *Reply
+			reply = &Reply{Term: hrt.Term, Result: true}
+			t_data, err := json.Marshal(reply)
+			if err != nil {
+				if debug {
+					log.Println("Follower,HeartBeat:- getting higher term:- Marshaling error: ", err)
+				}
+			}
+			data := string(t_data)
+			envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: data}
+			serv.ServerInfo.Outbox() <- &envelope
+			break
+		case APP:
+			// request for append entries recieved.
 			log.Println("Server sent Append Request", enve)
 			//app:= enve.Msg.(AppendEntries)
 			log.Println(enve.Msg)
-			break;
-		
-            }
+			break
+
+		}
 	//case <-time.After(2000+time.Duration(rand.Intn(151)*20) * time.Millisecond):
 	//case <-time.After(2000000000):
 	case <-timer.C:
@@ -495,7 +493,7 @@ func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 							//RType.Leader = serv.ServerInfo.Pid()
 							serv.ServState.UpdateState(2) //update state to Leader.
 							mutex.Unlock()
-						
+
 							// broadcast as a Leader.
 
 							x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
@@ -507,7 +505,7 @@ func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 							}
 							// braodcast the requestFor vote.
 							serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: string(data)}
-						
+
 							return
 						}
 					} else {
@@ -523,7 +521,7 @@ func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 				}
 
 			}
-		} else if enve.MsgId == REQ{
+		} else if enve.MsgId == REQ {
 
 			var req Request
 			_ = json.Unmarshal([]byte(enve.Msg.(string)), &req) //decode message into Envelope object.
@@ -611,35 +609,35 @@ func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 				*/
 			}
 
-		}else if enve.MsgId == HEART { //HeartBeat rcvd.
-                        timer.Reset(duration) //reset timer
-                        var hrt HeartBeat
-                        err := json.Unmarshal([]byte(enve.Msg.(string)), &hrt) //decode message into Envelope object.
-                        if err != nil {                                        //error into parsing/decoding
-                                if debug {
-                                        log.Println("Candidate,HeartBeat: Unmarshaling error:-\t", err)
-                                }
-                        }
-                        if debug {
-                                log.Println("Candidate:-Heartbeat Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid,hrt)
-                        }
-                        // send appropriate reply.
-                        var reply *Reply
-			if hrt.Term>= serv.Cur_Term() {//check whether leader is new enough.
-                                reply = &Reply{Term: hrt.Term, Result: true}
-			}else {
-                                reply = &Reply{Term: hrt.Term, Result: false}
+		} else if enve.MsgId == HEART { //HeartBeat rcvd.
+			timer.Reset(duration) //reset timer
+			var hrt HeartBeat
+			err := json.Unmarshal([]byte(enve.Msg.(string)), &hrt) //decode message into Envelope object.
+			if err != nil {                                        //error into parsing/decoding
+				if debug {
+					log.Println("Candidate,HeartBeat: Unmarshaling error:-\t", err)
+				}
 			}
-                        t_data, err := json.Marshal(reply)
-                        if err != nil {
-	                        if debug {
-        	                        log.Println("Follower,HeartBeat:- getting higher term:- Marshaling error: ", err)
-                                }
-                        }
-                                data := string(t_data)
-                                envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: data}
-                                serv.ServerInfo.Outbox() <- &envelope
-                }
+			if debug {
+				log.Println("Candidate:-Heartbeat Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid, hrt)
+			}
+			// send appropriate reply.
+			var reply *Reply
+			if hrt.Term >= serv.Cur_Term() { //check whether leader is new enough.
+				reply = &Reply{Term: hrt.Term, Result: true}
+			} else {
+				reply = &Reply{Term: hrt.Term, Result: false}
+			}
+			t_data, err := json.Marshal(reply)
+			if err != nil {
+				if debug {
+					log.Println("Follower,HeartBeat:- getting higher term:- Marshaling error: ", err)
+				}
+			}
+			data := string(t_data)
+			envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: data}
+			serv.ServerInfo.Outbox() <- &envelope
+		}
 
 	case <-timer.C:
 		if debug {
@@ -793,34 +791,33 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 
 	case <-timer.C:
 		//send heartbeat to all servers
-                x := &HeartBeat{Term: serv.Cur_Term(), LeaderId: serv.ServerInfo.Pid()}
-                data, err := json.Marshal(x)
-                if debug {
-                        log.Println("Timeout for Leader:-", serv.ServerInfo.Pid(), "Term", serv.Cur_Term())
-                }
-                if err != nil {
-                        if debug {
-                                log.Println("Marshaling error", x,err)
-                        }
-                }
-                // braodcast the requestFor vote.
-                serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: HEART, Msg: string(data)}
-
-
-/*
-		x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
+		x := &HeartBeat{Term: serv.Cur_Term(), LeaderId: serv.ServerInfo.Pid()}
 		data, err := json.Marshal(x)
 		if debug {
 			log.Println("Timeout for Leader:-", serv.ServerInfo.Pid(), "Term", serv.Cur_Term())
 		}
 		if err != nil {
 			if debug {
-				log.Println("Marshaling error", x)
+				log.Println("Marshaling error", x, err)
 			}
 		}
 		// braodcast the requestFor vote.
-		serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: string(data)}
-*/
+		serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: HEART, Msg: string(data)}
+
+		/*
+			x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
+			data, err := json.Marshal(x)
+			if debug {
+				log.Println("Timeout for Leader:-", serv.ServerInfo.Pid(), "Term", serv.Cur_Term())
+			}
+			if err != nil {
+				if debug {
+					log.Println("Marshaling error", x)
+				}
+			}
+			// braodcast the requestFor vote.
+			serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: string(data)}
+		*/
 		/*
 			for _, pid := range serv.ServState.followers {
 				serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: pid, MsgId: 0, Msg: string(data)}
