@@ -277,9 +277,9 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 			serv.ServState.Log[2] = LogItem{Index: 2, Term: 1, Data: "b"}
 			serv.ServState.Log[3] = LogItem{Index: 3, Term: 1, Data: "c"}
 			serv.ServState.Log[4] = LogItem{Index: 4, Term: 1, Data: "d"}
-			serv.ServState.Log[4] = LogItem{Index: 5, Term: 1, Data: "e"}
+			serv.ServState.Log[5] = LogItem{Index: 5, Term: 1, Data: "e"}
 			//log.Println(rtype, serv.ServerInfo.Valid, serv)
-		}else if pid == 2{
+		}else if pid == 3{
 			serv.ServState.CommitIndex = 2
 			serv.ServState.LastApplied = 2
 			serv.ServState.Log[1] = LogItem{Index: 1, Term: 1, Data: "a"}
@@ -436,6 +436,13 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 			if app.Term < serv.ServState.my_term || serv.ServState.Log[app.PrevLogIndex].Term != app.PrevLogTerm {
 				if debug {
 					log.Println("Unmatched Append entry Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid, app,"Log is:-", serv.ServState.Log, serv.ServState.LastApplied, serv.ServState.CommitIndex)
+				}
+				_,exist:=serv.ServState.Log[serv.ServState.LastApplied-1]
+				if exist{
+					log.Println("Server Data", serv.ServState.Log, serv.ServState.LastApplied, serv.ServState.CommitIndex)
+					serv.ServState.LastApplied -= 1
+				}else if serv.ServState.LastApplied == 0{
+					serv.ServState.LastApplied = 1
 				}
 				reply = &AE_Reply{Term: app.Term, Success: false, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied }
 			} else {
@@ -754,7 +761,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 				if reply.Result { //confirmation received
 					timer.Reset(duration)
 					serv.ServState.followers[enve.Pid] = enve.Pid
-					serv.ServState.NextIndex[enve.Pid] = serv.ServState.CommitIndex
+					serv.ServState.NextIndex[enve.Pid] = serv.ServState.LastApplied 
 					serv.ServState.MatchIndex[enve.Pid] = 0
 					if debug {
 						log.Println("Leader :", serv.ServerInfo.MyPid, "has received confirmation from", enve.Pid, "for term", reply.Term, "and total votes:-", (len(serv.ServState.followers) + 1))
@@ -859,21 +866,22 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 			if debug {
 				log.Println("Append entry Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid, aer)
 			}
-
-			entry := LogItem{Index: aer.ExpectedIndex, Term: int64(serv.ServState.my_term), Data: serv.ServState.Log[aer.ExpectedIndex]}
-			app := &AppendEntries{Term: serv.Cur_Term(), LeaderId: serv.ServerInfo.Pid(), PrevLogIndex: serv.ServState.Log[aer.ExpectedIndex-1].Index, PrevLogTerm: serv.ServState.Log[aer.ExpectedIndex-1].Term, Entries: entry, LeaderCommitIndex: serv.ServState.CommitIndex}
-			data, err := json.Marshal(app)
-			if debug {
-				log.Println("Timeout for Leader:-", serv.ServerInfo.Pid(), "Term", serv.Cur_Term())
-			}
-			if err != nil {
+			_, exist := serv.ServState.Log[aer.ExpectedIndex]
+			if exist{
+				entry := LogItem{Index: aer.ExpectedIndex, Term: int64(serv.ServState.my_term), Data: serv.ServState.Log[aer.ExpectedIndex]}
+				app := &AppendEntries{Term: serv.Cur_Term(), LeaderId: serv.ServerInfo.Pid(), PrevLogIndex: serv.ServState.Log[aer.ExpectedIndex-1].Index, PrevLogTerm: serv.ServState.Log[aer.ExpectedIndex-1].Term, Entries: entry, LeaderCommitIndex: serv.ServState.CommitIndex}
+				data, err := json.Marshal(app)
 				if debug {
-					log.Println("Append Entry,Leader, Marshaling error", app, err)
+					log.Println("Timeout for Leader:-", serv.ServerInfo.Pid(), "Term", serv.Cur_Term())
 				}
+				if err != nil {
+					if debug {
+						log.Println("Append Entry,Leader, Marshaling error", app, err)
+					}
+				}
+				// braodcast the requestFor vote.
+				serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: enve.Pid, MsgId: APP, Msg: string(data)}
 			}
-			// braodcast the requestFor vote.
-			serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: enve.Pid, MsgId: APP, Msg: string(data)}
-
 			break
 
 		default:
@@ -898,11 +906,14 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 
 		//send Append entry requests to followers
                 for _, pid := range serv.ServState.followers {
+			log.Println("Timeout for Leader:-", serv.ServerInfo.Pid(), "Term", serv.ServState)
+			_, exist := serv.ServState.Log[serv.ServState.NextIndex[pid]]
+			if exist{
 			entry := LogItem{Index: serv.ServState.NextIndex[pid], Term: int64(serv.ServState.my_term), Data: serv.ServState.Log[serv.ServState.NextIndex[pid]]}
 			app := &AppendEntries{Term: serv.Cur_Term(), LeaderId: serv.ServerInfo.Pid(), PrevLogIndex: serv.ServState.Log[serv.ServState.NextIndex[pid]-1].Index, PrevLogTerm: serv.ServState.Log[serv.ServState.NextIndex[pid]-1].Term, Entries: entry, LeaderCommitIndex: serv.ServState.CommitIndex}
 			data, err = json.Marshal(app)
 			if debug {
-				log.Println("Timeout for Leader:-", serv.ServerInfo.Pid(), "Term", serv.Cur_Term())
+				log.Println("Timeout for Leader:-", serv.ServerInfo.Pid(), "Term", serv.Cur_Term(),exist)
 			}
 			if err != nil {
 				if debug {
@@ -911,6 +922,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 			}
 
 			serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: pid, MsgId: APP, Msg: string(data)}
+			}
 		}
 		/*
 			x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
