@@ -143,7 +143,7 @@ func start(cmd *exec.Cmd) {
 	}
 }
 func killProc(wg *sync.WaitGroup) {
-	time.Sleep(5 * time.Second)
+	time.Sleep(15 * time.Second)
 	for k := 0; k < 3; k++ {
 		for i := 1; i < total_servers; i++ {
 			//time.After(5 * time.Second)
@@ -159,7 +159,7 @@ func killProc(wg *sync.WaitGroup) {
 					}
 					cmd[i].Process.Kill()
 					//cmd[i].Process.Wait()
-					time.Sleep(5 * time.Second)
+					time.Sleep(10 * time.Second)
 					temp := &exec.Cmd{Path: cmd[i].Path, Args: cmd[i].Args, Stdout: cmd[i].Stdout, Stderr: cmd[i].Stderr}
 					delete(cmd, i)
 					cmd[i] = temp

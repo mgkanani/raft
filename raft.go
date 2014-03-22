@@ -271,20 +271,21 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 	}
 	if serv.ServerInfo.Valid {
 		if pid == 1 {
-			serv.ServState.CommitIndex = 3
-			serv.ServState.LastApplied = 5
+			serv.ServState.CommitIndex = 0
+			serv.ServState.LastApplied = 3
 			serv.ServState.Log[1] = LogItem{Index: 1, Term: 1, Data: "a"}
 			serv.ServState.Log[2] = LogItem{Index: 2, Term: 1, Data: "b"}
 			serv.ServState.Log[3] = LogItem{Index: 3, Term: 1, Data: "c"}
-			serv.ServState.Log[4] = LogItem{Index: 4, Term: 1, Data: "d"}
-			serv.ServState.Log[5] = LogItem{Index: 5, Term: 1, Data: "e"}
+			/*			serv.ServState.Log[4] = LogItem{Index: 4, Term: 1, Data: "d"}
+						serv.ServState.Log[5] = LogItem{Index: 5, Term: 1, Data: "e"}
+			*/
 			//log.Println(rtype, serv.ServerInfo.Valid, serv)
 		} else if pid == 3 {
-			serv.ServState.CommitIndex = 3
-			serv.ServState.LastApplied = 3
+			serv.ServState.CommitIndex = 0
+			serv.ServState.LastApplied = 2
 			serv.ServState.Log[1] = LogItem{Index: 1, Term: 1, Data: "a"}
 			serv.ServState.Log[2] = LogItem{Index: 2, Term: 5, Data: "b2"}
-			serv.ServState.Log[3] = LogItem{Index: 2, Term: 5, Data: "c2"}
+			//			serv.ServState.Log[3] = LogItem{Index: 2, Term: 5, Data: "c2"}
 			//log.Println(rtype, serv.ServerInfo.Valid, serv)
 
 		}
@@ -322,9 +323,12 @@ func (serv *Server) start() {
 
 //Server goes to Follower state.
 func (serv *Server) StateFollower(mutex *sync.Mutex) {
-	//duration := 1*time.Second + time.Duration(rand.Intn(151))*time.Millisecond
+	duration := 700*time.Millisecond + time.Duration(rand.Intn(151))*10*time.Millisecond
+	if serv.ServerInfo.MyPid == 1 {
+		duration = 500 * time.Millisecond
+	}
 	//duration := 600 * time.Millisecond
-	duration := time.Duration((rand.Intn(50)+serv.ServerInfo.MyPid*60)*12) * time.Millisecond
+	//duration := time.Duration((rand.Intn(50)+serv.ServerInfo.MyPid*60)*12) * time.Millisecond
 	timer := time.NewTimer(duration)
 
 	select { //used for selecting channel for given event.
@@ -342,9 +346,30 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 			//fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid, " Request is:-.", req)
 
 			if req.Term < serv.Cur_Term() {
-				//just drop the message or reject the request.
-
-			} else if req.Term > serv.Cur_Term() {
+				/*
+				                	        timer.Stop() //stop timer.
+					                        mutex.Lock()
+				        	                serv.ServState.UpdateVote_For(serv.ServerInfo.MyPid) //giving him self vote.
+				                	        _ = serv.ServState.UpdateState(1)                    // update state to be a candidate.
+					                        serv.ServState.UpdateTerm(serv.Cur_Term() + 1)       //increment term by one.
+				        	                mutex.Unlock()
+				                	        var req *Request
+				                        	req = &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid(),LastLogIndex:serv.ServState.Log[int64(len(serv.ServState.Log))].Index,LastLogTerm:serv.ServState.Log[int64(len(serv.ServState.Log))].Term}
+					                        t_data, err := json.Marshal(req)
+				        	                if err != nil {
+				                	                if debug {
+				                        	                log.Println("Follower:- After Awaking :- Marshaling error: ", err)
+				                                	}
+					                        } else {
+				        	                        data := string(t_data)
+				                	                // braodcast the requestFor vote.
+				                        	        envelope := cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: data}
+				                                	serv.ServerInfo.Outbox() <- &envelope
+					                                //fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid, "After Awaking,req sent for vote", req, "actual sent", data, envelope, serv)
+				        	                }
+					                        return
+				*/
+			} else if req.LastLogIndex >= serv.ServState.LastApplied && req.Term > serv.Cur_Term() && req.LastLogTerm >= serv.ServState.Log[int64(len(serv.ServState.Log))].Term {
 				//higher term received, reset timer,send accept for request.
 				timer.Reset(duration) //reset timer
 				//fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid, " Request Recieved.", req)
@@ -385,7 +410,29 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 				if debug {
 					log.Println("Follower : Serverid-", serv.ServerInfo.MyPid, "Rejected for", req.CandidateId, "on Term:", req.Term)
 				}
-			}
+			} /*else if req.Term > serv.Cur_Term(){//wrong candidate has sent request.
+			                	        timer.Stop() //stop timer.
+				                        mutex.Lock()
+			        	                serv.ServState.UpdateVote_For(serv.ServerInfo.MyPid) //giving him self vote.
+			                	        _ = serv.ServState.UpdateState(1)                    // update state to be a candidate.
+				                        serv.ServState.UpdateTerm(req.Term + 1)       //increment term by one.
+			        	                mutex.Unlock()
+			                	        var req *Request
+			                        	req = &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid(),LastLogIndex:serv.ServState.Log[int64(len(serv.ServState.Log))].Index,LastLogTerm:serv.ServState.Log[int64(len(serv.ServState.Log))].Term}
+				                        t_data, err := json.Marshal(req)
+			        	                if err != nil {
+			                	                if debug {
+			                        	                log.Println("Follower:- After Awaking :- Marshaling error: ", err)
+			                                	}
+				                        } else {
+			        	                        data := string(t_data)
+			                	                // braodcast the requestFor vote.
+			                        	        envelope := cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: data}
+			                                	serv.ServerInfo.Outbox() <- &envelope
+				                                //fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid, "After Awaking,req sent for vote", req, "actual sent", data, envelope, serv)
+			        	                }
+				                        return
+						}*/
 
 			break
 
@@ -412,7 +459,7 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 			t_data, err := json.Marshal(reply)
 			if err != nil {
 				if debug {
-					log.Println("Follower,HeartBeat:- getting higher term:- Marshaling error: ", err)
+					log.Println("Follower,HeartBeat:- Marshaling error: ", err)
 				}
 			}
 			data := string(t_data)
@@ -458,7 +505,7 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 			t_data, err := json.Marshal(reply)
 			if err != nil {
 				if debug {
-					log.Println("Follower,AppendEntries:- getting higher term:- Marshaling error: ", err)
+					log.Println("Follower,AppendEntries:- Marshaling error: ", err)
 				}
 			}
 			data := string(t_data)
@@ -491,7 +538,7 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 			serv.ServState.UpdateTerm(serv.Cur_Term() + 1)       //increment term by one.
 			mutex.Unlock()
 			var req *Request
-			req = &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
+			req = &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid(), LastLogIndex: serv.ServState.Log[int64(len(serv.ServState.Log))].Index, LastLogTerm: serv.ServState.Log[int64(len(serv.ServState.Log))].Term}
 			t_data, err := json.Marshal(req)
 			if err != nil {
 				if debug {
@@ -558,7 +605,7 @@ func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 
 							// broadcast as a Leader.
 
-							x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
+							x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid(), LastLogIndex: serv.ServState.Log[int64(len(serv.ServState.Log))].Index, LastLogTerm: serv.ServState.Log[int64(len(serv.ServState.Log))].Term}
 							data, err := json.Marshal(x)
 							if err != nil {
 								if debug {
@@ -614,7 +661,7 @@ func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 					return
 				} else if req.Term >= serv.Cur_Term()
 			*/
-			if req.Term > serv.Cur_Term() {
+			if req.LastLogIndex >= serv.ServState.LastApplied && req.Term > serv.Cur_Term() && req.LastLogTerm >= serv.ServState.Log[int64(len(serv.ServState.Log))].Term {
 				// getting higher term.
 				if debug {
 					log.Println("Higher Term Recvd for Candidate ", serv.ServerInfo.MyPid, "from", enve.Pid)
@@ -654,7 +701,7 @@ func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 					//now send request message and becareful about not to update term.
 
 					ok := serv.ServState.UpdateState(1) // update state to be a candidate.
-					x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
+					x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid(),LastLogIndex:serv.ServState.Log[int64(len(serv.ServState.Log))].Index,LastLogTerm:serv.ServState.Log[int64(len(serv.ServState.Log))].Term}
 					data, err = json.Marshal(x)
 					//fmt.Println("data is:-", x)
 					if err != nil {
@@ -693,7 +740,7 @@ func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 			t_data, err := json.Marshal(reply)
 			if err != nil {
 				if debug {
-					log.Println("Follower,HeartBeat:- getting higher term:- Marshaling error: ", err)
+					log.Println("Follower,HeartBeat:- Marshaling error: ", err)
 				}
 			}
 			data := string(t_data)
@@ -719,7 +766,7 @@ func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 				println("error in updating state")
 			}*/
 		//serv.ServState.UpdateTerm(serv.Cur_Term() + 1) //increment term by one.
-		//x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
+		//x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid(),LastLogIndex:serv.ServState.Log[int64(len(serv.ServState.Log))].Index,LastLogTerm:serv.ServState.Log[int64(len(serv.ServState.Log))].Term}
 		//data, err := json.Marshal(x)
 		//fmt.Println("data is:-", x)
 		//if err != nil {
@@ -745,7 +792,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 
 	select { //used for selecting channel for given event.
 	case enve := <-serv.ServerInfo.Inbox():
-		timer.Reset(duration)
+		//timer.Reset(duration)
 		switch enve.MsgId {
 		case REP:
 			//reply recvd
@@ -802,7 +849,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 			//request received.
 			//fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid, "Request Recvd:-", req, enve)
 			var reply *Reply
-			if req.Term > serv.Cur_Term() {
+			if req.LastLogIndex >= serv.ServState.LastApplied && req.Term > serv.Cur_Term() && req.LastLogTerm >= serv.ServState.Log[int64(len(serv.ServState.Log))].Term {
 				// getting higher term and it has not voted before.
 				//RType.Leader = 0 //reset leader.
 				if debug {
@@ -842,7 +889,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 				}
 				//now send request message and becareful about not to update term.
 
-				x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
+				x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid(), LastLogIndex: serv.ServState.Log[int64(len(serv.ServState.Log))].Index, LastLogTerm: serv.ServState.Log[int64(len(serv.ServState.Log))].Term}
 				data, err = json.Marshal(x)
 				//fmt.Println("data is:-", x)
 				if err != nil {
@@ -945,7 +992,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 			}
 		}
 		/*
-			x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
+			x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid(),LastLogIndex:serv.ServState.Log[int64(len(serv.ServState.Log))].Index,LastLogTerm:serv.ServState.Log[int64(len(serv.ServState.Log))].Term}
 			data, err := json.Marshal(x)
 			if debug {
 				log.Println("Timeout for Leader:-", serv.ServerInfo.Pid(), "Term", serv.Cur_Term())

@@ -16,11 +16,10 @@ var total_servers = 7
 
 var rafttype *Raft.RaftType
 
-type RPC_Msg struct{
-	Term int
+type RPC_Msg struct {
+	Term   int
 	Leader int
 }
-
 
 type Test struct{}
 
