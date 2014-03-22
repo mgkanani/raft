@@ -272,12 +272,20 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 	if serv.ServerInfo.Valid {
 		if pid == 1 {
 			serv.ServState.CommitIndex = 3
+			serv.ServState.LastApplied = 5
 			serv.ServState.Log[1] = LogItem{Index: 1, Term: 1, Data: "a"}
 			serv.ServState.Log[2] = LogItem{Index: 2, Term: 1, Data: "b"}
 			serv.ServState.Log[3] = LogItem{Index: 3, Term: 1, Data: "c"}
 			serv.ServState.Log[4] = LogItem{Index: 4, Term: 1, Data: "d"}
 			serv.ServState.Log[4] = LogItem{Index: 5, Term: 1, Data: "e"}
-			log.Println(rtype, serv.ServerInfo.Valid, serv)
+			//log.Println(rtype, serv.ServerInfo.Valid, serv)
+		}else if pid == 2{
+			serv.ServState.CommitIndex = 2
+			serv.ServState.LastApplied = 2
+			serv.ServState.Log[1] = LogItem{Index: 1, Term: 1, Data: "a"}
+			serv.ServState.Log[2] = LogItem{Index: 2, Term: 5, Data: "b2"}
+			//log.Println(rtype, serv.ServerInfo.Valid, serv)
+
 		}
 		go serv.start()
 		go rtype.handleInbox()
@@ -421,14 +429,20 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 				}
 			}
 			if debug {
-				log.Println("Append entry Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid, app, serv.ServState.Log, serv.ServState.LastApplied, serv.ServState.CommitIndex)
+				//log.Println("Append entry Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid, app, serv.ServState.Log, serv.ServState.LastApplied, serv.ServState.CommitIndex)
 			}
 			// send positive reply.
 			var reply *AE_Reply
 			if app.Term < serv.ServState.my_term || serv.ServState.Log[app.PrevLogIndex].Term != app.PrevLogTerm {
-				reply = &AE_Reply{Term: app.Term, Success: false, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied + 1}
+				if debug {
+					log.Println("Unmatched Append entry Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid, app,"Log is:-", serv.ServState.Log, serv.ServState.LastApplied, serv.ServState.CommitIndex)
+				}
+				reply = &AE_Reply{Term: app.Term, Success: false, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied }
 			} else {
-				reply = &AE_Reply{Term: app.Term, Success: true, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.CommitIndex + 1}
+				if debug {
+					log.Println("matched Append entry Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid, app,"Log is:-", serv.ServState.Log, serv.ServState.LastApplied, serv.ServState.CommitIndex)
+				}
+				reply = &AE_Reply{Term: app.Term, Success: true, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied + 1 }
 				serv.ServState.Log[app.PrevLogIndex+1] = app.Entries
 				serv.ServState.LastApplied = app.PrevLogIndex + 1
 				serv.ServState.CommitIndex = app.LeaderCommitIndex
@@ -443,6 +457,7 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 			envelope := cluster.Envelope{Pid: enve.Pid, MsgId: AER, Msg: data}
 			serv.ServerInfo.Outbox() <- &envelope
 
+			time.Sleep(100 * time.Millisecond)
 			break
 
 		}
@@ -881,20 +896,22 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 		// braodcast the requestFor vote.
 		serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: HEART, Msg: string(data)}
 
-		entry := LogItem{Index: serv.ServState.CommitIndex + 1, Term: int64(serv.ServState.my_term), Data: serv.ServState.Log[serv.ServState.CommitIndex+1]}
-		app := &AppendEntries{Term: serv.Cur_Term(), LeaderId: serv.ServerInfo.Pid(), PrevLogIndex: serv.ServState.Log[serv.ServState.CommitIndex].Index, PrevLogTerm: serv.ServState.Log[serv.ServState.CommitIndex].Term, Entries: entry, LeaderCommitIndex: serv.ServState.CommitIndex}
-		data, err = json.Marshal(app)
-		if debug {
-			log.Println("Timeout for Leader:-", serv.ServerInfo.Pid(), "Term", serv.Cur_Term())
-		}
-		if err != nil {
+		//send Append entry requests to followers
+                for _, pid := range serv.ServState.followers {
+			entry := LogItem{Index: serv.ServState.NextIndex[pid], Term: int64(serv.ServState.my_term), Data: serv.ServState.Log[serv.ServState.NextIndex[pid]]}
+			app := &AppendEntries{Term: serv.Cur_Term(), LeaderId: serv.ServerInfo.Pid(), PrevLogIndex: serv.ServState.Log[serv.ServState.NextIndex[pid]-1].Index, PrevLogTerm: serv.ServState.Log[serv.ServState.NextIndex[pid]-1].Term, Entries: entry, LeaderCommitIndex: serv.ServState.CommitIndex}
+			data, err = json.Marshal(app)
 			if debug {
-				log.Println("Append Entry,Leader, Marshaling error", app, err)
+				log.Println("Timeout for Leader:-", serv.ServerInfo.Pid(), "Term", serv.Cur_Term())
 			}
-		}
-		// braodcast the requestFor vote.
-		serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: APP, Msg: string(data)}
+			if err != nil {
+				if debug {
+					log.Println("Append Entry,Leader, Marshaling error", app, err)
+				}
+			}
 
+			serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: pid, MsgId: APP, Msg: string(data)}
+		}
 		/*
 			x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid()}
 			data, err := json.Marshal(x)
