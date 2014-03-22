@@ -18,8 +18,8 @@ var total_servers = 7
 var cmd map[int]*exec.Cmd
 var dbg = false
 
-type RPC_Msg struct{
-	Term int
+type RPC_Msg struct {
+	Term   int
 	Leader int
 }
 
