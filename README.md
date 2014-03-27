@@ -99,6 +99,8 @@ now use:-```godoc math/rand ```
 
 [http://play.golang.org/p/5LIA41Iqfp] -> to discard all log data ( this is done only for raft_test.go file.)
 
+[http://stackoverflow.com/questions/21532113/golang-converting-string-to-int64]
+
 #Mistakes(very silly but consumes much time) during coding which takes hours to find and resolve.
 
 Making Request and Reply's data as private and using marshal and Unmarshal function which returns null data.

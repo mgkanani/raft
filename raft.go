@@ -7,11 +7,15 @@ import (
 	rand "math/rand"
 	"sync"
 	"time"
-
+	"github.com/syndtr/goleveldb/leveldb"
+	"strconv"
 //	"fmt"
 )
 
 const (
+
+    DBFILE = "./leveldb2"
+
 	FOLLOWER  = 0
 	CANDIDATE = 1
 	LEADER    = 2
@@ -19,12 +23,15 @@ const (
 	REQ   = 0
 	REP   = 1
 	APP   = 2
-	L_I   = 3 //LogItem received at leader. only used for leader.
+	L_I_REQ   = 3 //LogItem request received at leader. only used for leader.
 	HEART = 4 //used to identify heartbeat message from Leader.
 	AER   = 5 //Append Entry reply type
+	L_I_REP   = 6 //LogItem response received.
 )
 
 var debug = true
+var db *leveldb.DB
+
 
 type RaftType struct {
 	serv *Server
@@ -87,19 +94,23 @@ func (raft *RaftType) handleInbox() {
 	for {
 		req := <-raft.in //Log Item received.
 		log.Println("data arrived", req)
-		if raft.serv.ServState.my_state != LEADER { //If it is leader.
 			t_data, err := json.Marshal(req)
 			if err != nil {
 				if debug {
 					log.Println("In handleInbox:- Marshaling error: ", err)
 				}
 			} else {
+				var envelope cluster.Envelope
 				data := string(t_data)
 				// braodcast the requestFor vote.
-				envelope := cluster.Envelope{Pid: cluster.BROADCAST, MsgId: L_I, Msg: data}
-				raft.serv.ServerInfo.Inbox() <- &envelope
+				if raft.serv.ServState.my_state != LEADER { //If it is leader.
+					envelope = cluster.Envelope{Pid: raft.serv.ServerInfo.Pid(), MsgId: L_I_REQ, Msg: data}
+				}else if raft.serv.ServState.my_state == CANDIDATE{
+			}else{
+					envelope = cluster.Envelope{Pid: raft.serv.ServState.vote_for, MsgId: L_I_REQ, Msg: data}
 			}
-		}
+			raft.serv.ServerInfo.Inbox() <- &envelope
+			}		
 	}
 }
 
@@ -270,6 +281,28 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 		log.Println(rtype, serv.ServerInfo.Valid, serv)
 	}
 	if serv.ServerInfo.Valid {
+		var err error
+		db, err = leveldb.OpenFile(DBFILE+"_"+strconv.Itoa(pid)+".db", nil)
+		if err !=nil{
+			if debug{
+				log.Println("err in opening file for leveldb:-",DBFILE,"error is:-",err)
+			}
+		}
+		iter := db.NewIterator(nil, nil)
+
+		var logitem LogItem
+
+		for iter.Next() {
+		    // Remember that the contents of the returned slice should not be modified, and
+		    // only valid until the next call to Next.
+		    serv.ServState.CommitIndex , err = strconv.ParseInt(string(iter.Key()),10,64)
+			log.Println(err)
+                    err = json.Unmarshal(iter.Value(), &logitem) //decode message into Envelope object.
+		    serv.ServState.Log[serv.ServState.CommitIndex] = logitem
+		}
+		iter.Release()
+		log.Println("Error if:-",iter.Error())
+/*
 		if pid == 1 {
 			serv.ServState.CommitIndex = 0
 			serv.ServState.LastApplied = 3
@@ -280,7 +313,7 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 						serv.ServState.Log[5] = LogItem{Index: 5, Term: 1, Data: "e"}
 			*/
 			//log.Println(rtype, serv.ServerInfo.Valid, serv)
-		} else if pid == 3 {
+/*		} else if pid == 3 {
 			serv.ServState.CommitIndex = 0
 			serv.ServState.LastApplied = 2
 			serv.ServState.Log[1] = LogItem{Index: 1, Term: 1, Data: "a"}
@@ -289,6 +322,7 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 			//log.Println(rtype, serv.ServerInfo.Valid, serv)
 
 		}
+*/
 		go serv.start()
 		go rtype.handleInbox()
 		//go rtype.handleOutbox()
@@ -319,6 +353,7 @@ func (serv *Server) start() {
 		}
 	}
 
+		defer db.Close()
 }
 
 //Server goes to Follower state.
@@ -439,6 +474,10 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 		case REP:
 			//reply recvd. drop it.
 			break
+		case L_I_REP:
+			//reply recvd for LogItem
+			//serv.Outbox()<-enve
+			break
 
 		case HEART:
 			//HeartBeat rcvd.
@@ -466,6 +505,8 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 			envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: data}
 			serv.ServerInfo.Outbox() <- &envelope
 			break
+
+
 		case APP:
 			// request for append entries recieved.
 			//app:= enve.Msg.(AppendEntries)
@@ -501,6 +542,15 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 				serv.ServState.Log[app.PrevLogIndex+1] = app.Entries
 				serv.ServState.LastApplied = app.PrevLogIndex + 1
 				serv.ServState.CommitIndex = app.LeaderCommitIndex
+				t_data, err := json.Marshal(serv.ServState.LastApplied)
+				t_data1, err := json.Marshal(app.Entries)
+				if err!=nil && debug{
+					log.Println("In Follwer:APP:-",err)
+				}
+				err = db.Put(t_data, t_data1, nil)//writting to database.
+				if err!=nil && debug{
+					log.Println("In Follwer:APP writing to db error.:-",err)
+				}
 			}
 			t_data, err := json.Marshal(reply)
 			if err != nil {
@@ -927,6 +977,16 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 						total++
 						if n < total {
 							serv.ServState.CommitIndex++
+			                                t_data, err := json.Marshal(serv.ServState.CommitIndex)
+			                                t_data1, err := json.Marshal(serv.ServState.Log[serv.ServState.CommitIndex])
+			                                if err!=nil && debug{
+			                                       log.Println("In Follwer:APP:-",err)
+                        			        }
+			                                err = db.Put(t_data, t_data1, nil)//writting to database.
+			                                if err!=nil && debug{
+			                                        log.Println("In Follwer:APP writing to db error.:-",err)
+			                                }
+
 							break
 						}
 					}
@@ -934,7 +994,8 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 			}
 			_, exist := serv.ServState.Log[aer.ExpectedIndex]
 			if exist {
-				entry := LogItem{Index: aer.ExpectedIndex, Term: int64(serv.ServState.my_term), Data: serv.ServState.Log[aer.ExpectedIndex]}
+				//entry := LogItem{Index: aer.ExpectedIndex, Term: int64(serv.ServState.my_term), Data: serv.ServState.Log[aer.ExpectedIndex]}
+				entry := serv.ServState.Log[aer.ExpectedIndex]
 				app := &AppendEntries{Term: serv.Cur_Term(), LeaderId: serv.ServerInfo.Pid(), PrevLogIndex: serv.ServState.Log[aer.ExpectedIndex-1].Index, PrevLogTerm: serv.ServState.Log[aer.ExpectedIndex-1].Term, Entries: entry, LeaderCommitIndex: serv.ServState.CommitIndex}
 				data, err := json.Marshal(app)
 				if err != nil {
@@ -951,6 +1012,9 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 			timer.Reset(duration)
 			break
 
+		case L_I_REQ:
+			log.Println("Leader:- Request from client received", enve)
+			break
 		default:
 			log.Println("Leader:- Request from client received", enve)
 			break
@@ -974,9 +1038,14 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 		//send Append entry requests to followers
 		for _, pid := range serv.ServState.followers {
 			//log.Println("Inloop Timeout for Leader:-", serv.ServerInfo.Pid(), "ServerState is:-", serv.ServState)
-			_, exist := serv.ServState.Log[serv.ServState.NextIndex[pid]]
+			temp_pid:=serv.ServState.NextIndex[pid]
+			if temp_pid == 0{
+				temp_pid = 1
+			}
+			_, exist := serv.ServState.Log[temp_pid]
 			if exist {
-				entry := LogItem{Index: serv.ServState.NextIndex[pid], Term: int64(serv.ServState.my_term), Data: serv.ServState.Log[serv.ServState.NextIndex[pid]]}
+				//entry := LogItem{Index: serv.ServState.NextIndex[pid], Term: int64(serv.ServState.my_term), Data: serv.ServState.Log[serv.ServState.NextIndex[pid]]}
+				entry := serv.ServState.Log[serv.ServState.NextIndex[pid]]
 				app := &AppendEntries{Term: serv.Cur_Term(), LeaderId: serv.ServerInfo.Pid(), PrevLogIndex: serv.ServState.Log[serv.ServState.NextIndex[pid]-1].Index, PrevLogTerm: serv.ServState.Log[serv.ServState.NextIndex[pid]-1].Term, Entries: entry, LeaderCommitIndex: serv.ServState.CommitIndex}
 				data, err = json.Marshal(app)
 				if err != nil {

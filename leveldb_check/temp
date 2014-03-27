@@ -1,0 +1,169 @@
+package main
+
+import (
+    //"code.google.com/p/leveldb-go/leveldb/db"
+    //"code.google.com/p/leveldb-go/leveldb/table"
+    db "github.com/syndtr/goleveldb/leveldb"
+    table "github.com/syndtr/goleveldb/leveldb/table"
+    "fmt"
+    "runtime"
+)
+
+type kv struct {
+    K []byte
+    V []byte
+}
+
+type kvs struct {
+    items map[int]kv
+}
+
+func (p *kv) PutKV(k []byte, v []byte) {
+    p.K = k
+    p.V = v
+}
+
+func (items *kvs) PutKVs() {
+    fmt.Println(items)
+}
+
+func (p *kv) GetKV() (key []byte, value []byte) {
+    key = p.K
+    value = p.V
+    return
+}
+
+func Check(e error) {
+    if e != nil {
+        _, file, line, _ := runtime.Caller(1)
+    }
+}
+
+func p(r []byte, e error) {
+    if e != nil {
+        return e
+    }
+    println(string(r))
+}
+
+const (
+    DBFILE = "/tmp/leveldb2.db"
+)
+
+var DBFS = db.DefaultFileSystem
+
+func main() {
+    Connection, e := DBFS.Create(DBFILE)
+    Check(e)
+    w := table.NewWriter(Connection, nil)
+    defer w.Close()
+
+    e = w.Set([]byte("1"), []byte("red"), nil)
+    Check(e)
+    e = w.Set([]byte("2"), []byte("yellow"), nil)
+    Check(e)
+    e = w.Set([]byte("3"), []byte("blue"), nil)
+    Check(e)
+    e = w.Close()
+    Check(e)
+    w = nil
+
+    count()
+
+    fmt.Println("Printing # KV")
+    itemsKV := readByte()
+    fmt.Println(itemsKV[0])
+    fmt.Println(itemsKV[1])
+    fmt.Println(itemsKV[2])
+    println("Done Printing # KV")
+
+    Connection, e = DBFS.Create(DBFILE)
+    Check(e)
+    w = table.NewWriter(Connection, nil)
+    defer w.Close()
+    e = w.Set([]byte("4"), []byte("green"), nil)
+    Check(e)
+    e = w.Set([]byte("5"), []byte("white"), nil)
+    Check(e)
+    e = w.Set([]byte("6"), []byte("black"), nil)
+    Check(e)
+    e = w.Close()
+    Check(e)
+}
+
+func count() {
+    Connection, e := DBFS.Open(DBFILE)
+    Check(e)
+    b := []byte("0")
+    r := table.NewReader(Connection, nil)
+
+    println("\n\n###### Counting ###### ")
+
+    iter, n := r.Find(b, nil), 0
+    for iter.Next() {
+        n++
+        println("Count # ", n)
+    }
+
+    e = r.Close()
+    Check(e)
+    println("#####Total: ", n)
+}
+
+func read() map[int64]string {
+    Connection, e := DBFS.Open(DBFILE)
+    Check(e)
+    b := []byte("0")
+    r := table.NewReader(Connection, nil)
+
+    items := map[int64]string{}
+    iter, _ := r.Find(b, nil), 0
+    for iter.Next() {
+        k := iter.Key()
+        v := iter.Value()
+        items[int64(k[0])] = string(v)
+    }
+
+    e = r.Close()
+    Check(e)
+    return items
+}
+
+func readByte() map[int]kv {
+    Connection, e := DBFS.Open(DBFILE)
+    Check(e)
+    c := 0
+    b := []byte("0")
+    r := table.NewReader(Connection, nil)
+
+    //items := map[int64]kv{}
+    item := new(kv)
+    items := map[int]kv{}
+    iter, _ := r.Find(b, nil), 0
+    for iter.Next() {
+        k := iter.Key()
+        v := iter.Value()
+        item.PutKV(k, v)
+        items[c] = *item
+        c++
+    }
+
+    e = r.Close()
+    Check(e)
+    return items
+}
+
+func findOne(k []byte) []byte {
+    Connection, e := DBFS.Open(DBFILE)
+    Check(e)
+    b := []byte("0")
+    r := table.NewReader(Connection, nil)
+
+    iter, _ := r.Find(b, nil), 0
+    k = iter.Key()
+    v := iter.Value()
+
+    e = r.Close()
+    Check(e)
+    return v
+}

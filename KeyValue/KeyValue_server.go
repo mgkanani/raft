@@ -22,7 +22,7 @@ var mut sync.RWMutex
 
 func main() {
 	if len(os.Args) != 4 {
-		fmt.Println("format:-server ipaddr:port")
+		fmt.Println("format:-KeyValue ipaddr:port -pid n")
 		return
 	}
 	//ch := make(chan bool)
@@ -52,28 +52,35 @@ func main() {
 	//valid := InitServer(myid, "./config.json",true , ch)
 	valid, rafttype = Raft.InitServer(myid, "./config.json", true)
 
-	litem := &Raft.LogItem{Index: 1, Data: "hello"}
-	fmt.Println("ch1", rafttype)
-	in := rafttype.Inbox()
-	fmt.Println("ch2", in)
-	in <- litem
-	fmt.Println("ch3", in)
-	if valid {
-		for {
-			fmt.Println("ch4", in)
-			in <- litem
+/*	int  is_leader;
+	rafttype.Leader(&is_leader)
+	//if myid==is_leader{
+		litem := &Raft.LogItem{Index: 1, Data: "hello"}
+		fmt.Println("ch1", rafttype)
+		in := rafttype.Inbox()
+		fmt.Println("ch2", in)
+		in <- litem
+		fmt.Println("ch3", in)
+*/
+		if valid {
+			for {
+			//fmt.Println("ch4", in)
+			//in <- litem
 			conn, err := ln.Accept()
-			fmt.Println("ch5", in)
+			//fmt.Println("ch5", in)
 			if err != nil {
 				fmt.Print(err)
 				return
 			}
 			go handle_client(conn)
-		}
-	} else {
+			}
+		} else {
 		log.Println("error generated in starting server according to configuration file")
 		os.Exit(1)
-	}
+		}
+	//}else{
+
+	//}
 }
 
 func Get_Val(key string) string {
@@ -108,6 +115,15 @@ func Rename(key1 string, key2 string) bool {
 
 func handle_client(c net.Conn) {
 	defer c.Close()
+
+        var is_leader int;
+        rafttype.Leader(&is_leader)
+        if myid==is_leader{
+		litem := &Raft.LogItem{Index: 1, Data: "hello"}
+		fmt.Println("ch1", rafttype)
+		in := rafttype.Inbox()
+		fmt.Println("ch2", in)
+		in <- litem
 
 	for {
 		msg := make([]byte, 1000)
@@ -189,5 +205,9 @@ func handle_client(c net.Conn) {
 			fmt.Printf("Rename from Map[%s] to Map[%s]", keyfrom, keyto)
 
 		}
+	}
+
+	}else{
+
 	}
 }
