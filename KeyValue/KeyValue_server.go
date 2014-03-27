@@ -52,18 +52,18 @@ func main() {
 	//valid := InitServer(myid, "./config.json",true , ch)
 	valid, rafttype = Raft.InitServer(myid, "./config.json", true)
 
-/*	int  is_leader;
-	rafttype.Leader(&is_leader)
-	//if myid==is_leader{
-		litem := &Raft.LogItem{Index: 1, Data: "hello"}
-		fmt.Println("ch1", rafttype)
-		in := rafttype.Inbox()
-		fmt.Println("ch2", in)
-		in <- litem
-		fmt.Println("ch3", in)
-*/
-		if valid {
-			for {
+	/*	int  is_leader;
+		rafttype.Leader(&is_leader)
+		//if myid==is_leader{
+			litem := &Raft.LogItem{Index: 1, Data: "hello"}
+			fmt.Println("ch1", rafttype)
+			in := rafttype.Inbox()
+			fmt.Println("ch2", in)
+			in <- litem
+			fmt.Println("ch3", in)
+	*/
+	if valid {
+		for {
 			//fmt.Println("ch4", in)
 			//in <- litem
 			conn, err := ln.Accept()
@@ -73,11 +73,11 @@ func main() {
 				return
 			}
 			go handle_client(conn)
-			}
-		} else {
+		}
+	} else {
 		log.Println("error generated in starting server according to configuration file")
 		os.Exit(1)
-		}
+	}
 	//}else{
 
 	//}
@@ -116,98 +116,98 @@ func Rename(key1 string, key2 string) bool {
 func handle_client(c net.Conn) {
 	defer c.Close()
 
-        var is_leader int;
-        rafttype.Leader(&is_leader)
-        if myid==is_leader{
+	var is_leader int
+	rafttype.Leader(&is_leader)
+	if myid == is_leader {
 		litem := &Raft.LogItem{Index: 1, Data: "hello"}
 		fmt.Println("ch1", rafttype)
 		in := rafttype.Inbox()
 		fmt.Println("ch2", in)
 		in <- litem
 
-	for {
-		msg := make([]byte, 1000)
+		for {
+			msg := make([]byte, 1000)
 
-		n, err := c.Read(msg)
-		if err == io.EOF {
-			fmt.Printf("SERVER: received EOF (%d bytes ignored)\n", n)
-			return
-		} else if err != nil {
-			fmt.Printf("ERROR: read\n")
-			fmt.Print(err)
-			return
-		}
-		fmt.Printf("SERVER: received %v bytes\n", n)
-
-		//to_send :=string(msg);
-		str := strings.Fields(string(msg))
-
-		fmt.Printf("msg=%s\n", msg)
-		//fmt.Println(str[0]=="get",str[1])
-		action := str[0]
-		key := str[1]
-		switch {
-
-		case action == "set":
-			val := str[2]
-			temp := make(map[string]string)
-			temp[key] = val
-			litem := &Raft.LogItem{Index: 1, Data: &temp}
-			rafttype.Inbox() <- litem
-			mut.Lock()
-			//Map[key] = val
-			Set_Val(key, val)
-			mut.Unlock()
-			fmt.Printf("set Map[%s]=%s", key, val)
-
-		case action == "update":
-			val := str[2]
-			mut.Lock()
-			//Map[key] = val
-			Update_Val(key, val)
-			mut.Unlock()
-			fmt.Printf("update Map[%s]=%s", str[1], str[2])
-
-		case action == "get":
-			//fmt.Printf("s Map[%s]=%s e\n", str[1], Map[key])
-			//fmt.Printf("s Map[%s]=%s e\n", str[1], Map["abc"])
-			//temp:=string(strings.TrimSpace(str[1]));
-			mut.RLock()
-			//temp := []byte(Map[key])
-			temp := []byte(Get_Val(key))
-			mut.RUnlock()
-			fmt.Println(temp)
-			fmt.Printf("get Map[%s]=%s", key, temp)
-			n, err = c.Write(temp)
-			if n == 0 {
-				n, err = c.Write([]byte("\n"))
-			}
-
-			if err != nil {
-				fmt.Printf("ERROR: write\n")
+			n, err := c.Read(msg)
+			if err == io.EOF {
+				fmt.Printf("SERVER: received EOF (%d bytes ignored)\n", n)
+				return
+			} else if err != nil {
+				fmt.Printf("ERROR: read\n")
 				fmt.Print(err)
 				return
 			}
-			fmt.Printf("SERVER: sent %v bytes\n", n)
+			fmt.Printf("SERVER: received %v bytes\n", n)
 
-		case action == "delete":
-			mut.Lock()
-			Delete(key)
-			mut.Unlock()
-			fmt.Printf("delete Map[%s]", key)
+			//to_send :=string(msg);
+			str := strings.Fields(string(msg))
 
-		case action == "rename":
-			keyfrom := str[1]
-			keyto := str[2]
-			mut.Lock()
-			Rename(keyfrom, keyto)
-			mut.Unlock()
-			fmt.Printf("Rename from Map[%s] to Map[%s]", keyfrom, keyto)
+			fmt.Printf("msg=%s\n", msg)
+			//fmt.Println(str[0]=="get",str[1])
+			action := str[0]
+			key := str[1]
+			switch {
 
+			case action == "set":
+				val := str[2]
+				temp := make(map[string]string)
+				temp[key] = val
+				litem := &Raft.LogItem{Index: 1, Data: &temp}
+				rafttype.Inbox() <- litem
+				mut.Lock()
+				//Map[key] = val
+				Set_Val(key, val)
+				mut.Unlock()
+				fmt.Printf("set Map[%s]=%s", key, val)
+
+			case action == "update":
+				val := str[2]
+				mut.Lock()
+				//Map[key] = val
+				Update_Val(key, val)
+				mut.Unlock()
+				fmt.Printf("update Map[%s]=%s", str[1], str[2])
+
+			case action == "get":
+				//fmt.Printf("s Map[%s]=%s e\n", str[1], Map[key])
+				//fmt.Printf("s Map[%s]=%s e\n", str[1], Map["abc"])
+				//temp:=string(strings.TrimSpace(str[1]));
+				mut.RLock()
+				//temp := []byte(Map[key])
+				temp := []byte(Get_Val(key))
+				mut.RUnlock()
+				fmt.Println(temp)
+				fmt.Printf("get Map[%s]=%s", key, temp)
+				n, err = c.Write(temp)
+				if n == 0 {
+					n, err = c.Write([]byte("\n"))
+				}
+
+				if err != nil {
+					fmt.Printf("ERROR: write\n")
+					fmt.Print(err)
+					return
+				}
+				fmt.Printf("SERVER: sent %v bytes\n", n)
+
+			case action == "delete":
+				mut.Lock()
+				Delete(key)
+				mut.Unlock()
+				fmt.Printf("delete Map[%s]", key)
+
+			case action == "rename":
+				keyfrom := str[1]
+				keyto := str[2]
+				mut.Lock()
+				Rename(keyfrom, keyto)
+				mut.Unlock()
+				fmt.Printf("Rename from Map[%s] to Map[%s]", keyfrom, keyto)
+
+			}
 		}
-	}
 
-	}else{
+	} else {
 
 	}
 }
