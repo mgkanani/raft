@@ -238,6 +238,10 @@ func (rt *RaftType) Term() int {
 	return rt.serv.Cur_Term()
 }
 
+func (rt *RaftType) GetIndex() int64 {
+	return rt.serv.ServState.LastApplied
+}
+
 func (rt *RaftType) Leader(id *int) {
 	if rt.serv.ServState.my_state == FOLLOWER {
 		//return rt.serv.ServState.vote_for
@@ -299,8 +303,9 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 			err = json.Unmarshal(iter.Value(), &logitem) //decode message into Envelope object.
 			serv.ServState.Log[serv.ServState.CommitIndex] = logitem
 		}
+		serv.ServState.LastApplied = serv.ServState.CommitIndex
 		iter.Release()
-		log.Println("Error if:-", iter.Error())
+		log.Println("Error if:-", iter.Error(), serv.ServState.LastApplied)
 		/*
 			if pid == 1 {
 				serv.ServState.CommitIndex = 0
