@@ -1,6 +1,6 @@
-=============== Mar 28, 2014 (IST) ===============
-12:17:10.025596 db@open opening
-12:17:10.025732 journal@recovery F·1
-12:17:10.026261 journal@recovery recovering @268
-12:17:10.027047 db@janitor F·4 G·0
-12:17:10.027085 db@open done T·1.43096ms
+=============== Mar 29, 2014 (IST) ===============
+20:38:50.539970 db@open opening
+20:38:50.540135 journal@recovery F·1
+20:38:50.540733 journal@recovery recovering @448
+20:38:50.547859 db@janitor F·3 G·0
+20:38:50.547887 db@open done T·7.8562ms

@@ -91,7 +91,7 @@ func (raft RaftType) handleOutbox() {
 func (raft *RaftType) handleInbox() {
 	log.Println("In inbox")
 	for {
-		req := <-raft.in //Log Item received.
+		req := <-raft.in //Log Item received. and req.Data must be in []byte
 		log.Println("data arrived", req)
 		t_data, err := json.Marshal(req)
 		if err != nil {

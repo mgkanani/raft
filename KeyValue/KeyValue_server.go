@@ -1,18 +1,33 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	Raft "github.com/mgkanani/raft"
+	"github.com/syndtr/goleveldb/leveldb"
 	"io"
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
+	//"reflect"
 )
 
 var Map map[string]string
+
+type MsgStruct struct {
+	Key  int64
+	Data interface{}
+}
+
+type DataType struct {
+	Type  int8 //0 to set, 1 to update,2 to delete.
+	Key   string
+	Value interface{}
+}
 
 var rafttype *Raft.RaftType
 var myid = 0
@@ -50,24 +65,13 @@ func main() {
 	var valid bool
 	//ch := make(chan int)
 	//valid := InitServer(myid, "./config.json",true , ch)
+	constructKeyValue(myid)
+
 	valid, rafttype = Raft.InitServer(myid, "./config.json", true)
 
-	/*	int  is_leader;
-		rafttype.Leader(&is_leader)
-		//if myid==is_leader{
-			litem := &Raft.LogItem{Index: 1, Data: "hello"}
-			fmt.Println("ch1", rafttype)
-			in := rafttype.Inbox()
-			fmt.Println("ch2", in)
-			in <- litem
-			fmt.Println("ch3", in)
-	*/
 	if valid {
 		for {
-			//fmt.Println("ch4", in)
-			//in <- litem
 			conn, err := ln.Accept()
-			//fmt.Println("ch5", in)
 			if err != nil {
 				fmt.Print(err)
 				return
@@ -78,9 +82,6 @@ func main() {
 		log.Println("error generated in starting server according to configuration file")
 		os.Exit(1)
 	}
-	//}else{
-
-	//}
 }
 
 func Get_Val(key string) string {
@@ -115,7 +116,7 @@ func Rename(key1 string, key2 string) bool {
 
 func handleReq(msg []byte) {
 	if true {
-		litem := &Raft.LogItem{Index: rafttype.GetIndex(), Term: int64(rafttype.Term()), Data: string(msg)}
+		litem := &Raft.LogItem{Index: rafttype.GetIndex(), Term: int64(rafttype.Term()), Data: msg}
 		fmt.Println(litem)
 		//rafttype.Inbox() <- litem
 		/*
@@ -130,6 +131,60 @@ func handleReq(msg []byte) {
 			}
 		*/
 	}
+}
+
+func constructKeyValue(pid int) {
+	/*
+	   //Assumptions:-
+	   //	->In logItem Data is stored in []byte.
+
+	   	var content MsgStruct
+	   	cont := &MsgStruct{Key:5,Data:"set abc 123"}
+	   	t_data, err := json.Marshal(cont)
+	   	logitem := &Raft.LogItem{Index: rafttype.GetIndex(), Term: int64(rafttype.Term()), Data:t_data}
+	   	err = json.Unmarshal(logitem.Data.([]byte), &content) //decode message into Envelope object.
+	           fmt.Println(content)
+
+	   	return
+	*/
+	DBFILE := "./leveldb2"
+	db, err := leveldb.OpenFile(DBFILE+"_"+strconv.Itoa(pid)+".db", nil)
+	if err != nil {
+		log.Println("err in opening file for leveldb:-", DBFILE, "error is:-", err)
+	}
+	iter := db.NewIterator(nil, nil)
+
+	var logitem Raft.LogItem
+	var content DataType
+
+	for iter.Next() {
+		CommitIndex, err := strconv.ParseInt(string(iter.Key()), 10, 64)
+		fmt.Println(CommitIndex, err)
+		err = json.Unmarshal(iter.Value(), &logitem) //decode message into Envelope object.
+		fmt.Println("response of conversion from log to log item", logitem)
+		//  now set/get/delete key-value in Map based on Log
+		testing := logitem.Data.(map[string]interface{})
+		/*
+			for key, value := range testing{
+				fmt.Println(reflect.TypeOf(value),key,value)
+			}
+		*/
+		fmt.Println(testing["Type"])
+		content = DataType{Type: int8(int(testing["Type"].(float64))), Key: testing["Key"].(string), Value: testing["Value"]}
+		fmt.Println(content)
+		switch content.Type {
+		case 0, 1: //set value
+			Map[content.Key] = content.Value.(string)
+			break
+		case 2: //delete value
+			delete(Map, content.Key)
+			break
+		}
+	}
+	iter.Release()
+	log.Println("Error if:-", iter.Error(), "Map is:-", Map)
+	defer db.Close()
+
 }
 
 func handle_client(c net.Conn) {
