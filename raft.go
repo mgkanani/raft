@@ -76,7 +76,7 @@ func (ser *Server) DiscardUpto(index int64) {
 
 }
 
-func (raft *RaftType) Outbox() chan *interface{} {
+func (raft *RaftType) Outbox() chan interface{} {
 	return raft.serv.out
 }
 
@@ -198,7 +198,7 @@ type Server struct {
 	ServState  ServerState        //Server-State informtion are stored.
 	ServerInfo cluster.ServerType //Server meta information will be stored like ip,port.
 	in         chan *LogItem      //for input channel(Inbox)
-	out        chan *interface{}  //for output channel(OutBox)
+	out        chan interface{}   //for output channel(OutBox)
 
 }
 
@@ -240,6 +240,11 @@ func (serv Server) Cur_Term() int {
 //returns the Server-id for which server it has voted.
 func (serv Server) Vote() int {
 	return serv.ServState.vote_for
+}
+
+//returns the Server-id for which server it has voted.
+func (serv RaftType) Vote() int {
+	return serv.serv.ServState.vote_for
 }
 
 func (rt *RaftType) Term() int {
@@ -286,10 +291,10 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 	debug = dbg
 	serv := new(Server)
 	rtype := RaftType{}
-	//rtype.serv.in, rtype.serv.out = make(chan *LogItem), make(chan *interface{})
+	//rtype.serv.in, rtype.serv.out = make(chan *LogItem), make(chan interface{})
 	rtype.setServer(serv)
 
-	serv.in, serv.out = make(chan *LogItem), make(chan *interface{})
+	serv.in, serv.out = make(chan *LogItem), make(chan interface{})
 	serv.ServerInfo = cluster.New(pid, file)
 	serv.ServState.followers = make(map[int]int)
 	serv.ServState.Log = make(map[int64]LogItem)
@@ -1008,7 +1013,8 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 							if err != nil && debug {
 								log.Println("In Follwer:APP writing to db error.:-", err)
 							}
-
+							temp := serv.ServState.CommitIndex
+							serv.out <- &temp
 							break
 						}
 					}
@@ -1089,6 +1095,9 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 				}
 			}
 		}
+
+		serv.ServState.followers = make(map[int]int) //clear followers list.
+
 		/*
 			x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid(),LastLogIndex:serv.ServState.Log[int64(len(serv.ServState.Log))].Index,LastLogTerm:serv.ServState.Log[int64(len(serv.ServState.Log))].Term}
 			data, err := json.Marshal(x)

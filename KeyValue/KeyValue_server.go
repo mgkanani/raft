@@ -13,7 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	//"reflect"
+
+//	"reflect"
 )
 
 const (
@@ -40,7 +41,7 @@ type Raft.DataType struct {
 */
 var rafttype *Raft.RaftType
 
-//var myid = 0
+var myid = 0
 
 //var mut sync.Mutex
 var mut sync.RWMutex
@@ -93,16 +94,19 @@ func main() {
 	if valid {
 		var is_leader int
 		for {
+			conn, err := ln.Accept()
 			rafttype.Leader(&is_leader)
 			fmt.Println("is_leader:-", is_leader)
-			//	if myid == is_leader {
-			conn, err := ln.Accept()
-			if err != nil {
-				fmt.Print(err)
-				return
+			if myid == is_leader {
+				if err != nil {
+					fmt.Print(err)
+					return
+				}
+				go handle_client(conn)
+			} else {
+				_, _ = conn.Write([]byte("Please contact Server -" + strconv.Itoa(rafttype.Vote())))
+				conn.Close()
 			}
-			go handle_client(conn)
-			//	}
 		}
 	} else {
 		log.Println("error generated in starting server according to configuration file")
@@ -146,7 +150,14 @@ func handleReq(msg Raft.DataType) {
 		litem := &Raft.LogItem{Index: index, Term: int64(rafttype.Term()), Data: msg}
 		fmt.Println(litem)
 		rafttype.Inbox() <- litem
-		Pending[index] = false
+		for {
+			data := <-rafttype.Outbox()
+			//fmt.Println(reflect.TypeOf(data),*(data.(*int64)),index)
+			if *(data.(*int64)) == index {
+				break
+			}
+		}
+		//Pending[index] = false
 	}
 }
 
@@ -169,22 +180,24 @@ func ConstructKeyValue(pid *int) {
 		err = json.Unmarshal(iter.Value(), &logitem) //decode message into Envelope object.
 		fmt.Println("response of conversion from log to log item", logitem)
 		//  now set/get/delete key-value in Map based on Log
-		testing := logitem.Data.(map[string]interface{})
-		/*
-			for key, value := range testing{
-				fmt.Println(reflect.TypeOf(value),key,value)
+		if logitem.Data != nil {
+			testing := logitem.Data.(map[string]interface{})
+			/*
+				for key, value := range testing{
+					fmt.Println(reflect.TypeOf(value),key,value)
+				}
+			*/
+			fmt.Println(testing["Type"])
+			content = Raft.DataType{Type: int8(int(testing["Type"].(float64))), Key: testing["Key"].(string), Value: testing["Value"]}
+			fmt.Println(content)
+			switch content.Type {
+			case 0, 1: //set value
+				Map[content.Key] = content.Value.(string)
+				break
+			case 2: //delete value
+				delete(Map, content.Key)
+				break
 			}
-		*/
-		fmt.Println(testing["Type"])
-		content = Raft.DataType{Type: int8(int(testing["Type"].(float64))), Key: testing["Key"].(string), Value: testing["Value"]}
-		fmt.Println(content)
-		switch content.Type {
-		case 0, 1: //set value
-			Map[content.Key] = content.Value.(string)
-			break
-		case 2: //delete value
-			delete(Map, content.Key)
-			break
 		}
 	}
 	iter.Release()
@@ -195,7 +208,11 @@ func ConstructKeyValue(pid *int) {
 
 func handle_client(c net.Conn) {
 	defer c.Close()
-
+	/*
+	   	var is_leader int;
+	   	rafttype.Leader(&is_leader)
+	           if myid == is_leader {
+	*/
 	for {
 		msg := make([]byte, 1000)
 
@@ -279,5 +296,10 @@ func handle_client(c net.Conn) {
 
 		}
 	}
+	/*
+		}else{
+			_,_ = c.Write([]byte("Please contact Server - "+strconv.Itoa(rafttype.Vote())))
 
+		}
+	*/
 }
