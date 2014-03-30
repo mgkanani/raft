@@ -8,7 +8,8 @@ A `raft` cluster contains several servers which allows the system to tolerate  f
 
 #Extension
 -if request comes to follower,redirecting it to leader.
-
+-use of zmq/http(redirect will be simpler) instead of relying on simple tcp client-server.
+-automate test for Key-Value.
 
 #Dependencies:-
 LevelDB:- github.com/syndtr/goleveldb/leveldb
@@ -29,6 +30,13 @@ go get github.com/mgkanani/raft/RaftMain
 go install github.com/mgkanani/raft/RaftMain
 go test github.com/mgkanani/raft
 ```
+
+
+## Tests performed:-
+-Tests are performed on 3-different machines(From 7 servers 2,2,3 servers on respective machines) for testing the working of Raft.
+
+-```go test ``` performs testing of raft by killing each process one by one after every 15-sec. This will be performed 3 times.
+
 
 ## To modify certain parameters  OR  Detailed Testing:-
 ```
