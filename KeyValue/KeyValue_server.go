@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
+	//	"flag"
 	"fmt"
 	Raft "github.com/mgkanani/raft"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -16,32 +16,43 @@ import (
 	//"reflect"
 )
 
+const (
+	SET    = 0
+	GET    = 3
+	UPDATE = 1
+	DELETE = 2
+)
+
 var Map map[string]string
+var Pending map[int64]bool
 
 type MsgStruct struct {
 	Key  int64
 	Data interface{}
 }
 
-type DataType struct {
+/*
+type Raft.DataType struct {
 	Type  int8 //0 to set, 1 to update,2 to delete.
 	Key   string
 	Value interface{}
 }
-
+*/
 var rafttype *Raft.RaftType
-var myid = 0
+
+//var myid = 0
 
 //var mut sync.Mutex
 var mut sync.RWMutex
 
 func main() {
-	if len(os.Args) != 4 {
-		fmt.Println("format:-KeyValue ipaddr:port -pid n")
+	if len(os.Args) != 3 {
+		fmt.Println("format:-KeyValue ipaddr:port pid")
 		return
 	}
 	//ch := make(chan bool)
 	Map = make(map[string]string)
+	Pending = make(map[int64]bool)
 
 	socket := os.Args[1]
 	addr_port, err := net.ResolveTCPAddr("tcp", socket)
@@ -58,25 +69,40 @@ func main() {
 	fmt.Println("Listening at addr:port", addr_port)
 	defer ln.Close()
 
-	flagid := flag.Int("pid", 1, "flag type is integer")
-	flag.Parse()
-	myid = *flagid
-	//wg := new(sync.WaitGroup)
+	/*	flagid := flag.Int("pid", 1, "flag type is integer")
+		flag.Parse()
+		fmt.Println(*flagid)
+		myid := *flagid
+		//wg := new(sync.WaitGroup)
+	*/
 	var valid bool
 	//ch := make(chan int)
 	//valid := InitServer(myid, "./config.json",true , ch)
-	constructKeyValue(myid)
+	myid, err := strconv.Atoi(os.Args[2])
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(2)
+	}
+	flagid := &myid
+	fmt.Println(os.Args, os.Args[2], myid)
+	ConstructKeyValue(flagid)
 
 	valid, rafttype = Raft.InitServer(myid, "./config.json", true)
 
+	fmt.Println("valid:-", valid)
 	if valid {
+		var is_leader int
 		for {
+			rafttype.Leader(&is_leader)
+			fmt.Println("is_leader:-", is_leader)
+			//	if myid == is_leader {
 			conn, err := ln.Accept()
 			if err != nil {
 				fmt.Print(err)
 				return
 			}
 			go handle_client(conn)
+			//	}
 		}
 	} else {
 		log.Println("error generated in starting server according to configuration file")
@@ -114,48 +140,28 @@ func Rename(key1 string, key2 string) bool {
 	return !ok
 }
 
-func handleReq(msg []byte) {
+func handleReq(msg Raft.DataType) {
 	if true {
-		litem := &Raft.LogItem{Index: rafttype.GetIndex(), Term: int64(rafttype.Term()), Data: msg}
+		index := rafttype.GetIndex(msg)
+		litem := &Raft.LogItem{Index: index, Term: int64(rafttype.Term()), Data: msg}
 		fmt.Println(litem)
-		//rafttype.Inbox() <- litem
-		/*
-			var is_leader int
-			rafttype.Leader(&is_leader)
-			if myid == is_leader {
-				litem := &Raft.LogItem{Index: 1, Data: "hello"}
-				fmt.Println("ch1", rafttype)
-				in := rafttype.Inbox()
-				fmt.Println("ch2", in)
-				in <- litem
-			}
-		*/
+		rafttype.Inbox() <- litem
+		Pending[index] = false
 	}
 }
 
-func constructKeyValue(pid int) {
-	/*
-	   //Assumptions:-
-	   //	->In logItem Data is stored in []byte.
-
-	   	var content MsgStruct
-	   	cont := &MsgStruct{Key:5,Data:"set abc 123"}
-	   	t_data, err := json.Marshal(cont)
-	   	logitem := &Raft.LogItem{Index: rafttype.GetIndex(), Term: int64(rafttype.Term()), Data:t_data}
-	   	err = json.Unmarshal(logitem.Data.([]byte), &content) //decode message into Envelope object.
-	           fmt.Println(content)
-
-	   	return
-	*/
+func ConstructKeyValue(pid *int) {
 	DBFILE := "./leveldb2"
-	db, err := leveldb.OpenFile(DBFILE+"_"+strconv.Itoa(pid)+".db", nil)
+	DBFILE += "_" + strconv.Itoa(*pid) + ".db"
+	log.Println(*pid, DBFILE)
+	db, err := leveldb.OpenFile(DBFILE, nil)
 	if err != nil {
 		log.Println("err in opening file for leveldb:-", DBFILE, "error is:-", err)
 	}
 	iter := db.NewIterator(nil, nil)
 
 	var logitem Raft.LogItem
-	var content DataType
+	var content Raft.DataType
 
 	for iter.Next() {
 		CommitIndex, err := strconv.ParseInt(string(iter.Key()), 10, 64)
@@ -170,7 +176,7 @@ func constructKeyValue(pid int) {
 			}
 		*/
 		fmt.Println(testing["Type"])
-		content = DataType{Type: int8(int(testing["Type"].(float64))), Key: testing["Key"].(string), Value: testing["Value"]}
+		content = Raft.DataType{Type: int8(int(testing["Type"].(float64))), Key: testing["Key"].(string), Value: testing["Value"]}
 		fmt.Println(content)
 		switch content.Type {
 		case 0, 1: //set value
@@ -204,8 +210,6 @@ func handle_client(c net.Conn) {
 		}
 		fmt.Printf("SERVER: received %v bytes\n", n)
 
-		go handleReq(msg)
-
 		//to_send :=string(msg);
 		str := strings.Fields(string(msg))
 
@@ -217,6 +221,8 @@ func handle_client(c net.Conn) {
 
 		case action == "set":
 			val := str[2]
+			msg := Raft.DataType{Type: SET, Key: key, Value: val}
+			handleReq(msg)
 			mut.Lock()
 			//Map[key] = val
 			Set_Val(key, val)
@@ -225,6 +231,8 @@ func handle_client(c net.Conn) {
 
 		case action == "update":
 			val := str[2]
+			msg := Raft.DataType{Type: UPDATE, Key: key, Value: val}
+			handleReq(msg)
 			mut.Lock()
 			//Map[key] = val
 			Update_Val(key, val)
@@ -239,8 +247,8 @@ func handle_client(c net.Conn) {
 			//temp := []byte(Map[key])
 			temp := []byte(Get_Val(key))
 			mut.RUnlock()
-			fmt.Println(temp)
-			fmt.Printf("get Map[%s]=%s", key, temp)
+			//fmt.Println(temp)
+			//fmt.Printf("get Map[%s]=%s", key, temp)
 			n, err = c.Write(temp)
 			if n == 0 {
 				n, err = c.Write([]byte("\n"))
@@ -254,6 +262,8 @@ func handle_client(c net.Conn) {
 			fmt.Printf("SERVER: sent %v bytes\n", n)
 
 		case action == "delete":
+			msg := Raft.DataType{Type: DELETE, Key: key}
+			handleReq(msg)
 			mut.Lock()
 			Delete(key)
 			mut.Unlock()

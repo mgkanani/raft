@@ -27,16 +27,19 @@ func main() {
 	   	db, err := leveldb.OpenFile(DBFILE, nil)
 		var log LogItem
 		var temp DataType;
+
 		temp = DataType{Type:0,Key:"abc",Value:"123"}
 		log = LogItem{Index:1,Term:2,Data:temp}
 		t_data, err := json.Marshal(&log)
 	   	err = db.Put([]byte("1"), t_data , nil)
+
 		temp = DataType{Type:0,Key:"pqr",Value:"456"}
-		log = LogItem{Index:1,Term:2,Data:temp}
+		log = LogItem{Index:2,Term:2,Data:temp}
 		t_data, err = json.Marshal(&log)
 	   	err = db.Put([]byte("2"), t_data , nil)
+
 		temp = DataType{Type:1,Key:"abc",Value:"789"}
-		log = LogItem{Index:1,Term:3,Data:temp}
+		log = LogItem{Index:3,Term:3,Data:temp}
 		t_data, err = json.Marshal(&log)
 	   	err = db.Put([]byte("3"), t_data , nil)
 

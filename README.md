@@ -2,6 +2,18 @@
 A `raft` cluster contains several servers which allows the system to tolerate  failure(for 5 servers, it will be 2). This template/pkg is implementing this algorithm. In this, one leader will be selected among the servers.
 
 
+#Implementation Details
+-Key-Value + Raft + leveldb
+-On startup Key-Value Map will be constructed from Logs saved in leveldb
+
+#Extension
+-if request comes to follower,redirecting it to leader.
+
+
+#Dependencies:-
+LevelDB:- github.com/syndtr/goleveldb/leveldb
+ZMQ:- github.com/pebbe/zmq4
+
 #Usage
 ## To install
 ```

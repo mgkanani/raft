@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-//	"fmt"
+	"fmt"
 )
 
 const (
@@ -34,9 +34,13 @@ var db *leveldb.DB
 
 type RaftType struct {
 	serv *Server
-	in   chan *LogItem     //for input channel(Inbox)
-	out  chan *interface{} //for output channel(OutBox)
+}
 
+//used for Key value purpose only.
+type DataType struct {
+	Type  int8 //0 to set, 1 to update,2 to delete.
+	Key   string
+	Value interface{}
 }
 
 type Raft interface {
@@ -73,11 +77,11 @@ func (ser *Server) DiscardUpto(index int64) {
 }
 
 func (raft *RaftType) Outbox() chan *interface{} {
-	return raft.out
+	return raft.serv.out
 }
 
 func (raft *RaftType) Inbox() chan *LogItem {
-	return raft.in
+	return raft.serv.in
 }
 
 /*
@@ -88,10 +92,14 @@ func (raft RaftType) handleOutbox() {
 }
 */
 
+func (ser *Server) PrintData() {
+	log.Println("ServerID", ser.ServerInfo.MyPid, "term:-", ser.ServState.my_term, "State", ser.ServState.my_state, "Log:-", ser.ServState.Log, "CommitInd:-", ser.ServState.CommitIndex, "LastApplied:-", ser.ServState.LastApplied, "Followers:-", ser.ServState.followers, "Next:-", ser.ServState.NextIndex, "Match:-", ser.ServState.MatchIndex)
+}
+
 func (raft *RaftType) handleInbox() {
 	log.Println("In inbox")
 	for {
-		req := <-raft.in //Log Item received. and req.Data must be in []byte
+		req := <-raft.serv.in //Log Item received. and req.Data must be in []byte
 		log.Println("data arrived", req)
 		t_data, err := json.Marshal(req)
 		if err != nil {
@@ -102,7 +110,7 @@ func (raft *RaftType) handleInbox() {
 			var envelope cluster.Envelope
 			data := string(t_data)
 			// braodcast the requestFor vote.
-			if raft.serv.ServState.my_state != LEADER { //If it is leader.
+			if raft.serv.ServState.my_state == LEADER { //If it is leader.
 				envelope = cluster.Envelope{Pid: raft.serv.ServerInfo.Pid(), MsgId: L_I_REQ, Msg: data}
 			} else if raft.serv.ServState.my_state == CANDIDATE {
 			} else {
@@ -189,6 +197,9 @@ type ServerState struct {
 type Server struct {
 	ServState  ServerState        //Server-State informtion are stored.
 	ServerInfo cluster.ServerType //Server meta information will be stored like ip,port.
+	in         chan *LogItem      //for input channel(Inbox)
+	out        chan *interface{}  //for output channel(OutBox)
+
 }
 
 //Update the Term
@@ -238,7 +249,11 @@ func (rt *RaftType) Term() int {
 	return rt.serv.Cur_Term()
 }
 
-func (rt *RaftType) GetIndex() int64 {
+func (rt *RaftType) GetIndex(msg DataType) int64 {
+	//to ensure that each request have different Index.
+	fmt.Println("in raft", msg)
+	rt.serv.ServState.Log[rt.serv.ServState.LastApplied+1] = LogItem{Index: rt.serv.ServState.LastApplied + 1, Term: int64(rt.serv.ServState.my_term), Data: msg}
+	rt.serv.ServState.LastApplied += 1
 	return rt.serv.ServState.LastApplied
 }
 
@@ -271,18 +286,16 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 	debug = dbg
 	serv := new(Server)
 	rtype := RaftType{}
-	rtype.in, rtype.out = make(chan *LogItem), make(chan *interface{})
+	//rtype.serv.in, rtype.serv.out = make(chan *LogItem), make(chan *interface{})
 	rtype.setServer(serv)
 
+	serv.in, serv.out = make(chan *LogItem), make(chan *interface{})
 	serv.ServerInfo = cluster.New(pid, file)
 	serv.ServState.followers = make(map[int]int)
 	serv.ServState.Log = make(map[int64]LogItem)
 	serv.ServState.NextIndex = make(map[int]int64)
 	serv.ServState.MatchIndex = make(map[int]int64)
 
-	if debug {
-		log.Println(rtype, serv.ServerInfo.Valid, serv)
-	}
 	if serv.ServerInfo.Valid {
 		var err error
 		db, err = leveldb.OpenFile(DBFILE+"_"+strconv.Itoa(pid)+".db", nil)
@@ -290,22 +303,23 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 			if debug {
 				log.Println("err in opening file for leveldb:-", DBFILE, "error is:-", err)
 			}
-		}
-		iter := db.NewIterator(nil, nil)
+		} else {
+			iter := db.NewIterator(nil, nil)
 
-		var logitem LogItem
+			var logitem LogItem
 
-		for iter.Next() {
-			// Remember that the contents of the returned slice should not be modified, and
-			// only valid until the next call to Next.
-			serv.ServState.CommitIndex, err = strconv.ParseInt(string(iter.Key()), 10, 64)
-			log.Println(err)
-			err = json.Unmarshal(iter.Value(), &logitem) //decode message into Envelope object.
-			serv.ServState.Log[serv.ServState.CommitIndex] = logitem
+			for iter.Next() {
+				// Remember that the contents of the returned slice should not be modified, and
+				// only valid until the next call to Next.
+				serv.ServState.CommitIndex, err = strconv.ParseInt(string(iter.Key()), 10, 64)
+				err = json.Unmarshal(iter.Value(), &logitem) //decode message into Envelope object.
+				//log.Println(logitem,err)
+				serv.ServState.Log[serv.ServState.CommitIndex] = logitem
+			}
+			serv.ServState.LastApplied = serv.ServState.CommitIndex
+			iter.Release()
+			//log.Println("Error if:-", iter.Error(), serv.ServState.LastApplied)
 		}
-		serv.ServState.LastApplied = serv.ServState.CommitIndex
-		iter.Release()
-		log.Println("Error if:-", iter.Error(), serv.ServState.LastApplied)
 		/*
 			if pid == 1 {
 				serv.ServState.CommitIndex = 0
@@ -327,6 +341,11 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 
 				}
 		*/
+
+		if debug {
+			//log.Println(rtype, serv.ServerInfo.Valid, serv)
+			serv.PrintData()
+		}
 		go serv.start()
 		go rtype.handleInbox()
 		//go rtype.handleOutbox()
@@ -1016,12 +1035,19 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 			break
 
 		case L_I_REQ:
-			log.Println("Leader:- Request from client received", enve)
+			log.Println("Leader:- L_I_REQ Request from client received", enve)
 			break
 		default:
-			log.Println("Leader:- Request from client received", enve)
+			log.Println("Leader:- default", enve)
 			break
 		}
+
+	case logitem := <-serv.in:
+		log.Println("Leader:-logitem received from kv", logitem, "Log:-", serv.ServState.Log)
+		/*
+
+		*/
+
 	case <-timer.C:
 		timer.Reset(duration)
 		//send heartbeat to all servers
