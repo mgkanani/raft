@@ -548,6 +548,7 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 			break
 
 		case APP:
+			timer.Reset(duration)
 			// request for append entries recieved.
 			//app:= enve.Msg.(AppendEntries)
 			var app AppendEntries
