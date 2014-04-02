@@ -560,6 +560,7 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 			}
 			if debug {
 				//log.Println("Append entry Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid, app, serv.ServState.Log, serv.ServState.LastApplied, serv.ServState.CommitIndex)
+				log.Println("=== New entry:-",app)
 			}
 			// send positive reply.
 			var reply *AE_Reply
@@ -587,21 +588,26 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 			}else if app.Term < serv.ServState.my_term {
 				//discard msg since it is of no use.
 			}else if serv.ServState.Log[serv.ServState.LastApplied].Term != app.PrevLogTerm || serv.ServState.LastApplied !=app.PrevLogIndex {
-				if debug {
-					log.Println("Unmatched Append entry Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid, app, "Log is:-", serv.ServState.Log, serv.ServState.LastApplied, serv.ServState.CommitIndex)
-				}
-				_, exist := serv.ServState.Log[serv.ServState.LastApplied-1]
-				if exist {
-					if debug{
-						log.Println("Server Data", serv.ServState.Log, serv.ServState.LastApplied, serv.ServState.CommitIndex)
+				if serv.ServState.LastApplied != app.PrevLogIndex {
+					reply = &AE_Reply{Term: app.Term, Success: false, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied+1}
+
+				}else{//less than
+					if debug {
+						log.Println("Unmatched Append entry Recvd for ", serv.ServState.Log[serv.ServState.LastApplied].Term,"!=",app.PrevLogTerm ,"OR",serv.ServState.LastApplied,"!=",app.PrevLogIndex)
 					}
-					serv.ServState.LastApplied -= 1
+					_, exist := serv.ServState.Log[serv.ServState.LastApplied-1]
+					if exist {
+						if debug{
+							log.Println("Server Data", serv.ServState.Log, serv.ServState.LastApplied, serv.ServState.CommitIndex)
+						}
+						serv.ServState.LastApplied -= 1
+					}
+					reply = &AE_Reply{Term: app.Term, Success: false, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied+1}
+					if debug {
+						log.Println("Unmatched Append entry Recvd for ", "received.PrevLogIndex:-", app.PrevLogIndex, "LastApplied:-", serv.ServState.LastApplied, serv.ServState.CommitIndex,"Expected:-",reply.ExpectedIndex)
+					}
 				}
-				reply = &AE_Reply{Term: app.Term, Success: false, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied}
 			} else {
-				if debug {
-					log.Println("matched Append entry Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid, app, "Log is:-", serv.ServState.Log, serv.ServState.LastApplied, serv.ServState.CommitIndex)
-				}
 				serv.ServState.Log[app.PrevLogIndex+1] = app.Entries
 				serv.ServState.LastApplied = app.PrevLogIndex + 1
 				serv.ServState.CommitIndex = app.LeaderCommitIndex
@@ -618,6 +624,9 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 					log.Println("In Follwer:APP writing to db error.:-", err)
 				}
 				reply = &AE_Reply{Term: app.Term, Success: true, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied + 1}
+				if debug {
+					log.Println("matched Append entry Recvd for ", "received.PrevLogIndex:-", app.PrevLogIndex, "LastApplied:-", serv.ServState.LastApplied, serv.ServState.CommitIndex,"Expected:-",reply.ExpectedIndex)
+				}
 			}
 			// new logic ends
 			/* //old  logic starts
@@ -965,7 +974,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 			} else if reply.Term == serv.Cur_Term() {
 				//fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid, "Reply Recvd:-", reply, enve, enve.Msg.(string))
 				if reply.Result { //confirmation received
-					timer.Reset(duration)
+					//timer.Reset(duration)
 					serv.ServState.followers[enve.Pid] = enve.Pid
 					if serv.ServState.NextIndex[enve.Pid] == 0 && serv.ServState.MatchIndex[enve.Pid] == 0 {
 						serv.ServState.NextIndex[enve.Pid] = serv.ServState.LastApplied
@@ -1066,7 +1075,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 			break
 
 		case AER:
-			timer.Reset(duration)
+			//timer.Reset(duration)
 			//timer.Stop()
 			var aer AE_Reply
 			err := json.Unmarshal([]byte(enve.Msg.(string)), &aer) //decode message into Envelope object.
@@ -1078,57 +1087,59 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 			if debug {
 				log.Println("Leader:- Response for AppendEntries received for sid:-", serv.ServerInfo.MyPid, "from", enve.Pid, "data is:-", aer, "PrevLogIndex:-", aer.PrevLogIndex)
 			}
+//			if aer.ExpectedIndex > serv.ServState.MatchIndex[enve.Pid]{
+				serv.ServState.NextIndex[enve.Pid] = aer.ExpectedIndex
 
-			serv.ServState.NextIndex[enve.Pid] = aer.ExpectedIndex
-			if aer.Success {
-				serv.ServState.MatchIndex[enve.Pid] = aer.PrevLogIndex + 1
-				total := 1
-				n := int((len(serv.ServerInfo.PeerIds) + 1) / 2)
-				for _, index := range serv.ServState.MatchIndex {
-					if index > serv.ServState.CommitIndex {
-						total++
-						if n < total {
-							serv.ServState.CommitIndex++
-							//t_data, err := json.Marshal(serv.ServState.CommitIndex)
-							t_data := make([]byte, 8)
-							binary.PutVarint(t_data, serv.ServState.LastApplied)
-							t_data1, err := json.Marshal(serv.ServState.Log[serv.ServState.CommitIndex])
-							if err != nil {
-								if debug{
-									log.Println("In Leader :AER error in marshaling before writing to db:-", err)
+				if aer.Success {
+					serv.ServState.MatchIndex[enve.Pid] = aer.PrevLogIndex + 1
+					total := 1
+					n := int((len(serv.ServerInfo.PeerIds) + 1) / 2)
+					for _, index := range serv.ServState.MatchIndex {
+						if index > serv.ServState.CommitIndex {
+							total++
+							if n < total {
+								serv.ServState.CommitIndex++
+								//t_data, err := json.Marshal(serv.ServState.CommitIndex)
+								t_data := make([]byte, 8)
+								binary.PutVarint(t_data, serv.ServState.LastApplied)
+								t_data1, err := json.Marshal(serv.ServState.Log[serv.ServState.CommitIndex])
+								if err != nil {
+									if debug{
+										log.Println("In Leader :AER error in marshaling before writing to db:-", err)
+									}
 								}
-							}
-							err = db.Put(t_data, t_data1, nil) //writting to database.
-							if err != nil{
-								if debug{
-									log.Println("In Leader:AER writing to db error.:-", err)
+								err = db.Put(t_data, t_data1, nil) //writting to database.
+								if err != nil{
+									if debug{
+										log.Println("In Leader:AER writing to db error.:-", err)
+									}
 								}
+								temp := serv.ServState.CommitIndex
+								serv.out <- &temp
+								break
 							}
-							temp := serv.ServState.CommitIndex
-							serv.out <- &temp
-							break
 						}
 					}
 				}
-			}
-			_, exist := serv.ServState.Log[aer.ExpectedIndex]
-			if exist {
-				//entry := LogItem{Index: aer.ExpectedIndex, Term: int64(serv.ServState.my_term), Data: serv.ServState.Log[aer.ExpectedIndex]}
-				entry := serv.ServState.Log[aer.ExpectedIndex]
-				app := &AppendEntries{Term: serv.Cur_Term(), LeaderId: serv.ServerInfo.Pid(), PrevLogIndex: serv.ServState.Log[aer.ExpectedIndex-1].Index, PrevLogTerm: serv.ServState.Log[aer.ExpectedIndex-1].Term, Entries: entry, LeaderCommitIndex: serv.ServState.CommitIndex}
-				data, err := json.Marshal(app)
-				if err != nil {
-					if debug {
-						log.Println("Append Entry,Leader, Marshaling error", app, err)
+				_, exist := serv.ServState.Log[aer.ExpectedIndex]
+				if exist {
+					//entry := LogItem{Index: aer.ExpectedIndex, Term: int64(serv.ServState.my_term), Data: serv.ServState.Log[aer.ExpectedIndex]}
+					entry := serv.ServState.Log[aer.ExpectedIndex]
+					app := &AppendEntries{Term: serv.Cur_Term(), LeaderId: serv.ServerInfo.Pid(), PrevLogIndex: serv.ServState.Log[aer.ExpectedIndex-1].Index, PrevLogTerm: serv.ServState.Log[aer.ExpectedIndex-1].Term, Entries: entry, LeaderCommitIndex: serv.ServState.CommitIndex}
+					data, err := json.Marshal(app)
+					if err != nil {
+						if debug {
+							log.Println("Append Entry,Leader, Marshaling error", app, err)
+						}
+					} else {
+						serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: enve.Pid, MsgId: APP, Msg: string(data)}
 					}
-				} else {
-					serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: enve.Pid, MsgId: APP, Msg: string(data)}
+					if debug {
+						log.Println("Leader:- new log entry sent is:-", app, "NextIndex:-", serv.ServState.NextIndex, "MatchIndex", serv.ServState.MatchIndex)
+					}
 				}
-				if debug {
-					log.Println("Leader:- new log entry sent is:-", app, "NextIndex:-", serv.ServState.NextIndex, "MatchIndex", serv.ServState.MatchIndex)
-				}
-			}
-			timer.Reset(duration)
+//			}
+			//timer.Reset(duration)
 			break
 /*
 		case L_I_REQ:
@@ -1181,7 +1192,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 			//log.Println("Inloop Timeout for Leader:-", serv.ServerInfo.Pid(), "ServerState is:-", serv.ServState)
 			temp_pid := serv.ServState.NextIndex[pid]
 			if temp_pid == 0 {
-				temp_pid = 1
+				temp_pid = serv.ServState.LastApplied
 			}
 			_, exist := serv.ServState.Log[temp_pid]
 			if exist {
