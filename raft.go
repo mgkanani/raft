@@ -366,7 +366,7 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 func (serv *Server) start() {
 	var mutex = &sync.Mutex{}
 	for {
-		//fmt.Println("For out side ",serv)
+		fmt.Println("Inside of for loop of start method ")
 
 		switch serv.ServState.my_state {
 		case FOLLOWER:
@@ -382,6 +382,9 @@ func (serv *Server) start() {
 			//fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid)
 			serv.StateLeader(mutex)
 		}
+	}
+	if debug {
+		log.Println("=========================Outside of for loop")
 	}
 
 	defer db.Close()
@@ -1127,5 +1130,8 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 
 	}
 	timer.Stop()
+	if debug {
+		log.Println("Leader ouside switch")
+	}
 
 }
