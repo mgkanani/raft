@@ -263,15 +263,16 @@ func (rt *RaftType) GetIndex(msg DataType) int64 {
 }
 
 func (rt *RaftType) Leader(id *int) {
+	//fmt.Println("In Leader function:-",rt,*id)
 	if rt.serv.ServState.my_state == FOLLOWER {
 		//return rt.serv.ServState.vote_for
 		*id = 0
-		return //0;
 	} else if rt.serv.ServState.my_state == LEADER {
 		*id = rt.serv.ServState.vote_for
 	} else {
 		*id = -1
 	}
+	//fmt.Println("In Leader function:-",rt,*id)
 }
 
 func (rt *RaftType) setServer(serv *Server) {
@@ -318,7 +319,9 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 				// only valid until the next call to Next.
 				serv.ServState.CommitIndex, err = strconv.ParseInt(string(iter.Key()), 10, 64)
 				err = json.Unmarshal(iter.Value(), &logitem) //decode message into Envelope object.
-				//log.Println(logitem,err)
+				if debug {
+					log.Println("In InitServer of Raft,", logitem, err)
+				}
 				serv.ServState.Log[serv.ServState.CommitIndex] = logitem
 			}
 			serv.ServState.LastApplied = serv.ServState.CommitIndex
@@ -982,7 +985,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 
 		case AER:
 			timer.Reset(duration)
-			timer.Stop()
+			//timer.Stop()
 			var aer AE_Reply
 			err := json.Unmarshal([]byte(enve.Msg.(string)), &aer) //decode message into Envelope object.
 			if err != nil {                                        //error into parsing/decoding
@@ -991,7 +994,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 				}
 			}
 			if debug {
-				log.Println("Leader:- Response for AppendEntries received for sid:-", serv.ServerInfo.MyPid, "from", enve.Pid, "data is:-", aer)
+				log.Println("Leader:- Response for AppendEntries received for sid:-", serv.ServerInfo.MyPid, "from", enve.Pid, "data is:-", aer, "PrevLogIndex:-", aer.PrevLogIndex)
 			}
 
 			serv.ServState.NextIndex[enve.Pid] = aer.ExpectedIndex
