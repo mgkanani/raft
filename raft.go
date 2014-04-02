@@ -394,10 +394,10 @@ func (serv *Server) start() {
 //Server goes to Follower state.
 func (serv *Server) StateFollower(mutex *sync.Mutex) {
 	duration := 700*time.Millisecond + time.Duration(rand.Intn(151))*10*time.Millisecond
-	if serv.ServerInfo.MyPid == 1 {
-		duration = 500 * time.Millisecond
-	}
-	//duration := 600 * time.Millisecond
+	/*	if serv.ServerInfo.MyPid == 1 {
+			duration = 500 * time.Millisecond
+		}
+	*/ //duration := 600 * time.Millisecond
 	//duration := time.Duration((rand.Intn(50)+serv.ServerInfo.MyPid*60)*12) * time.Millisecond
 	timer := time.NewTimer(duration)
 
@@ -583,6 +583,7 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 				if err != nil && debug {
 					log.Println("In Follwer:APP:-", err)
 				}
+				err = db.Delete(t_data, nil)       //writting to database.
 				err = db.Put(t_data, t_data1, nil) //writting to database.
 				if err != nil && debug {
 					log.Println("In Follwer:APP writing to db error.:-", err)
