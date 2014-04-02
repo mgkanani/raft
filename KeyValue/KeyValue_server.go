@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/binary"
 	"encoding/json"
-	//	"flag"
 	"fmt"
 	Raft "github.com/mgkanani/raft"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -21,11 +20,15 @@ import (
 )
 
 const (
-	SET    = 0
-	GET    = 3
-	UPDATE = 1
-	DELETE = 2
+	SET    = 1
+	GET    = 2
+	UPDATE = 3
+	DELETE = 4
+
+	debug = true
 )
+
+
 
 var Map map[string]interface{}
 var Pending map[int64]bool
@@ -126,7 +129,7 @@ func main() {
 
 	ConstructKeyValue(flagid)
 
-	valid, rafttype = Raft.InitServer(myid, "./config.json", true)
+	valid, rafttype = Raft.InitServer(myid, "./config.json", debug)
 
 	fmt.Println("valid:-", valid)
 	if valid {
@@ -240,12 +243,12 @@ func ConstructKeyValue(pid *int) {
 			content = Raft.DataType{Type: int8(int(testing["Type"].(float64))), Key: testing["Key"].(string), Value: testing["Value"]}
 			fmt.Println(content)
 			switch content.Type {
-			case 0, 1: //set value
+			case SET, UPDATE: //set value
 				if content.Value != nil {
 					Map[content.Key] = content.Value.(string)
 				}
 				break
-			case 2: //delete value
+			case DELETE: //delete value
 				delete(Map, content.Key)
 				break
 			}
@@ -262,11 +265,9 @@ func index(w http.ResponseWriter, r *http.Request) {
 	var is_leader int
 	rafttype.Leader(&is_leader)
 
-	//fmt.Println("Leader is:-",is_leader,"myid:-",myid)
 	if is_leader > 0 {
 
 		//	for {
-
 		//var msgs Message
 		var msgs Raft.DataType
 		body, e := ioutil.ReadAll(r.Body)
@@ -274,35 +275,14 @@ func index(w http.ResponseWriter, r *http.Request) {
 
 		fmt.Println(msgs, e)
 		fmt.Println("client request has been received on:-", r.Host, msgs, e)
-		//        response, _ := json.Marshal(person)
-		//        fmt.Fprintf(w, string(response))
 
-		/*		msg := make([]byte, 1000)
-
-				n, err := c.Read(msg)
-				if err == io.EOF {
-					fmt.Printf("SERVER: received EOF (%d bytes ignored)\n", n)
-					return
-				} else if err != nil {
-					fmt.Printf("ERROR: read\n")
-					fmt.Print(err)
-					return
-				}
-				fmt.Printf("SERVER: received %v bytes\n", n)
-
-				//to_send :=string(msg);
-				str := strings.Fields(string(msg))
-
-				fmt.Printf("msg=%s\n", msg)
-				//fmt.Println(str[0]=="get",str[1])
-				action := str[0]
-				key := str[1]
-		*/
 		switch msgs.Type {
-
-		case 0: //SET
+		case SET: //SET
 			//val := str[2]
 			//msg := msgs//Raft.DataType{Type: SET, Key: key, Value: val}
+			if debug{
+				fmt.Println(" In SET case:-")
+			}
 			handleReq(msgs)
 			mut.Lock()
 			//Map[key] = val
@@ -310,7 +290,10 @@ func index(w http.ResponseWriter, r *http.Request) {
 			mut.Unlock()
 			fmt.Printf("set Map[%s]=%s", msgs.Key, msgs.Value)
 
-		case 1: //Update
+		case UPDATE: //Update
+			if debug{
+				fmt.Println(" In UPDATE case:-")
+			}
 			//val := str[2]
 			//msg := Raft.DataType{Type: UPDATE, Key: key, Value: val}
 			handleReq(msgs)
@@ -320,47 +303,25 @@ func index(w http.ResponseWriter, r *http.Request) {
 			mut.Unlock()
 			//fmt.Printf("update Map[%s]=%s", str[1], str[2])
 
-		case 3: //Get
-			//fmt.Printf("s Map[%s]=%s e\n", str[1], Map[key])
-			//fmt.Printf("s Map[%s]=%s e\n", str[1], Map["abc"])
-			//temp:=string(strings.TrimSpace(str[1]));
+		case GET: //Get
+			if debug{
+				fmt.Println(" In GET case:-")
+			}
 			mut.RLock()
 			temp := Map[msgs.Key].(string)
-			//temp := []byte(Get_Val(key))
-			//temp := []byte(Get_Val(key))
 			mut.RUnlock()
-			//fmt.Println(temp)
-			//fmt.Printf("get Map[%s]=%s", key, temp)
-			//n, err = c.Write(temp)
 			fmt.Fprintf(w, temp)
-			/*			if n == 0 {
-							n, err = c.Write([]byte("\n"))
-						}
 
-						if err != nil {
-							fmt.Printf("ERROR: write\n")
-							fmt.Print(err)
-							return
-						}
-						fmt.Printf("SERVER: sent %v bytes\n", n)
-			*/
-
-		case 2: //Delete
+		case DELETE: //Delete
+			if debug{
+				fmt.Println(" In DELETE case:-")
+			}
 			//msg := Raft.DataType{Type: DELETE, Key: key}
 			handleReq(msgs)
 			mut.Lock()
 			Delete(msgs.Key)
 			mut.Unlock()
 			fmt.Printf("delete Map[%s]", msgs.Key)
-			/*
-				case action == "rename":
-					keyfrom := str[1]
-					keyto := str[2]
-					mut.Lock()
-					Rename(keyfrom, keyto)
-					mut.Unlock()
-					fmt.Printf("Rename from Map[%s] to Map[%s]", keyfrom, keyto)
-			*/
 		}
 		//	}
 	} else {
