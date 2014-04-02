@@ -3,7 +3,7 @@ package raft
 import (
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
+	//"fmt"
 	cluster "github.com/mgkanani/cluster"
 	"github.com/syndtr/goleveldb/leveldb"
 	"log"
@@ -36,7 +36,7 @@ type RaftType struct {
 	serv *Server
 }
 
-//used for Key value purpose only.
+//used for Key value purpose only. This structure is used in KeyValue_server.go file to create objects.
 type DataType struct {
 	Type  int8 //0 to set, 1 to update,2 to delete.
 	Key   string
@@ -64,6 +64,7 @@ type Raft interface {
 	DiscardUpto(index int64)
 }
 
+//This function has not been used.
 func (ser *Server) DiscardUpto(index int64) {
 	//discards all log entries after given index means >Index will be droped for follower only.
 	if ser.ServState.my_state == FOLLOWER {
@@ -76,31 +77,64 @@ func (ser *Server) DiscardUpto(index int64) {
 
 }
 
+//Returns the channel for Outbox
 func (raft *RaftType) Outbox() chan interface{} {
 	return raft.serv.out
 }
 
+//Returns the channel for Inbox
 func (raft *RaftType) Inbox() chan *LogItem {
 	return raft.serv.in
 }
 
-/*
-func (raft RaftType) handleOutbox() {
-	for{
-
-	}
-}
-*/
-
+//Prints the whole data of Server Object.
 func (ser *Server) PrintData() {
-	log.Println("ServerID", ser.ServerInfo.MyPid, "term:-", ser.ServState.my_term, "State", ser.ServState.my_state, "Log:-", ser.ServState.Log, "CommitInd:-", ser.ServState.CommitIndex, "LastApplied:-", ser.ServState.LastApplied, "Followers:-", ser.ServState.followers, "Next:-", ser.ServState.NextIndex, "Match:-", ser.ServState.MatchIndex)
+	log.Println("ServerID", ser.ServerInfo.MyPid, " \t Term:-", ser.ServState.my_term, "\t State:-", ser.ServState.my_state, "\t Log:-", ser.ServState.Log, "\nCommitIndex:-", ser.ServState.CommitIndex, "\t LastApplied:-", ser.ServState.LastApplied, "\nFollowers:-", ser.ServState.followers, "\t NextIndex:-", ser.ServState.NextIndex, "\t MatchIndex:-", ser.ServState.MatchIndex)
 }
 
+//This will retrieve msg and create Logitem object then apply it to Log data structure. This is used to ensure that each new log entry has different logindex.
+func (rt *RaftType) GetIndex(msg DataType) int64 {
+	//to ensure that each request have different Index.
+	if debug{
+		log.Println("In GetIndex method, Message is:-", msg)
+	}
+	rt.serv.ServState.Log[rt.serv.ServState.LastApplied+1] = LogItem{Index: rt.serv.ServState.LastApplied + 1, Term: int64(rt.serv.ServState.my_term), Data: msg}
+	rt.serv.ServState.LastApplied += 1
+/*
+	//Code to send notification that new log-entry received.
+                t_data, err := json.Marshal(rt.serv.ServState.Log[rt.serv.ServState.LastApplied])
+                if err != nil {
+                        if debug {
+                                log.Println("In handleInbox:- Marshaling error: ", err)
+                        }
+                } else {
+                        var envelope cluster.Envelope
+                        data := string(t_data)
+                        // braodcast the requestFor vote.
+                        if rt.serv.ServState.my_state == LEADER { //If it is leader.
+                                envelope = cluster.Envelope{Pid: rt.serv.ServerInfo.Pid(), MsgId: L_I_REQ, Msg: data}
+                        } else if rt.serv.ServState.my_state == CANDIDATE {
+                        } else {
+                                envelope = cluster.Envelope{Pid: rt.serv.ServState.vote_for, MsgId: L_I_REQ, Msg: data}
+                        }
+                        rt.serv.ServerInfo.Inbox() <- &envelope
+                }
+	//
+*/
+	return rt.serv.ServState.LastApplied
+}
+
+//this function has been deprecated. Currently not in use.
 func (raft *RaftType) handleInbox() {
-	log.Println("In inbox")
+	if debug{
+		//log.Println("In inbox")
+	}
 	for {
+		//wait for log entry request. This step can be eliminited because we have already fetched it.
 		req := <-raft.serv.in //Log Item received. and req.Data must be in []byte
-		log.Println("data arrived", req)
+		if debug{
+			log.Println("New Entry Received in handleInbox:-", req)
+		}
 		t_data, err := json.Marshal(req)
 		if err != nil {
 			if debug {
@@ -254,14 +288,6 @@ func (rt *RaftType) Term() int {
 	return rt.serv.Cur_Term()
 }
 
-func (rt *RaftType) GetIndex(msg DataType) int64 {
-	//to ensure that each request have different Index.
-	fmt.Println("in raft", msg)
-	rt.serv.ServState.Log[rt.serv.ServState.LastApplied+1] = LogItem{Index: rt.serv.ServState.LastApplied + 1, Term: int64(rt.serv.ServState.my_term), Data: msg}
-	rt.serv.ServState.LastApplied += 1
-	return rt.serv.ServState.LastApplied
-}
-
 func (rt *RaftType) Leader(id *int) {
 	//fmt.Println("In Leader function:-",rt,*id)
 	if rt.serv.ServState.my_state == FOLLOWER {
@@ -317,11 +343,13 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 			for iter.Next() {
 				// Remember that the contents of the returned slice should not be modified, and
 				// only valid until the next call to Next.
-				//serv.ServState.CommitIndex, err = strconv.ParseInt(string(iter.Key()), 10, 64)
+				//converts []byte to int64
 				serv.ServState.CommitIndex, _ = binary.Varint(iter.Key())
 				err = json.Unmarshal(iter.Value(), &logitem) //decode message into Envelope object.
-				if debug {
-					log.Println("In InitServer of Raft,", logitem, err)
+				if err!=nil{
+					if debug {
+						log.Println("In InitServer of Raft,Error during Marshaling:-",err)
+					}
 				}
 				serv.ServState.Log[serv.ServState.CommitIndex] = logitem
 			}
@@ -329,45 +357,23 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 			iter.Release()
 			//log.Println("Error if:-", iter.Error(), serv.ServState.LastApplied)
 		}
-		/*
-			if pid == 1 {
-				serv.ServState.CommitIndex = 0
-				serv.ServState.LastApplied = 3
-				serv.ServState.Log[1] = LogItem{Index: 1, Term: 1, Data: "a"}
-				serv.ServState.Log[2] = LogItem{Index: 2, Term: 1, Data: "b"}
-				serv.ServState.Log[3] = LogItem{Index: 3, Term: 1, Data: "c"}
-				/*			serv.ServState.Log[4] = LogItem{Index: 4, Term: 1, Data: "d"}
-							serv.ServState.Log[5] = LogItem{Index: 5, Term: 1, Data: "e"}
-		*/
-		//log.Println(rtype, serv.ServerInfo.Valid, serv)
-		/*		} else if pid == 3 {
-					serv.ServState.CommitIndex = 0
-					serv.ServState.LastApplied = 2
-					serv.ServState.Log[1] = LogItem{Index: 1, Term: 1, Data: "a"}
-					serv.ServState.Log[2] = LogItem{Index: 2, Term: 5, Data: "b2"}
-					//			serv.ServState.Log[3] = LogItem{Index: 2, Term: 5, Data: "c2"}
-					//log.Println(rtype, serv.ServerInfo.Valid, serv)
-
-				}
-		*/
-
 		if debug {
-			//log.Println(rtype, serv.ServerInfo.Valid, serv)
 			serv.PrintData()
 		}
 		go serv.start()
-		go rtype.handleInbox()
+		//go rtype.handleInbox()
 		//go rtype.handleOutbox()
 	}
 	return serv.ServerInfo.Valid, &rtype
 }
 
 //starts the leader election process.
-//func (serv Server) start(RType *RaftType, ch chan int)
 func (serv *Server) start() {
 	var mutex = &sync.Mutex{}
 	for {
-		fmt.Println("Inside of for loop of start method ")
+		if debug{
+			//log.Println("Inside of for loop of start method ")
+		}
 
 		switch serv.ServState.my_state {
 		case FOLLOWER:
@@ -556,6 +562,64 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 			}
 			// send positive reply.
 			var reply *AE_Reply
+			//new  logic starts
+			if app.PrevLogIndex==0 && app.PrevLogTerm==0 {
+				log.Println("===========First entry came:-",app)
+                                serv.ServState.Log[1] = app.Entries
+                                serv.ServState.LastApplied = 1
+                                //serv.ServState.CommitIndex = app.LeaderCommitIndex
+                                //t_data, err := json.Marshal(serv.ServState.LastApplied)
+                                t_data := make([]byte, 8)
+                                binary.PutVarint(t_data, serv.ServState.LastApplied)
+                                t_data1, err := json.Marshal(app.Entries)
+                                if err != nil && debug {
+                                        log.Println("In Follwer:APP:-", err)
+                                }
+                                err = db.Put(t_data, t_data1, nil) //writting to database.
+                                if err != nil {
+					if debug {
+                        	                log.Println("In Follwer:APP writing to db error.:-", err)
+					}
+                                }
+                                reply = &AE_Reply{Term: app.Term, Success: true, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied + 1}
+
+			}else if app.Term < serv.ServState.my_term {
+				//discard msg since it is of no use.
+			}else if serv.ServState.Log[serv.ServState.LastApplied].Term != app.PrevLogTerm || serv.ServState.LastApplied !=app.PrevLogIndex {
+				if debug {
+					log.Println("Unmatched Append entry Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid, app, "Log is:-", serv.ServState.Log, serv.ServState.LastApplied, serv.ServState.CommitIndex)
+				}
+				_, exist := serv.ServState.Log[serv.ServState.LastApplied-1]
+				if exist {
+					if debug{
+						log.Println("Server Data", serv.ServState.Log, serv.ServState.LastApplied, serv.ServState.CommitIndex)
+					}
+					serv.ServState.LastApplied -= 1
+				}
+				reply = &AE_Reply{Term: app.Term, Success: false, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied}
+			} else {
+				if debug {
+					log.Println("matched Append entry Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid, app, "Log is:-", serv.ServState.Log, serv.ServState.LastApplied, serv.ServState.CommitIndex)
+				}
+				serv.ServState.Log[app.PrevLogIndex+1] = app.Entries
+				serv.ServState.LastApplied = app.PrevLogIndex + 1
+				serv.ServState.CommitIndex = app.LeaderCommitIndex
+				//t_data, err := json.Marshal(serv.ServState.LastApplied)
+				t_data := make([]byte, 8)
+				binary.PutVarint(t_data, serv.ServState.LastApplied)
+				t_data1, err := json.Marshal(app.Entries)
+				if err != nil && debug {
+					log.Println("In Follwer:APP:-", err)
+				}
+				//err = db.Delete(t_data, nil)       //writting to database.
+				err = db.Put(t_data, t_data1, nil) //writting to database.
+				if err != nil && debug {
+					log.Println("In Follwer:APP writing to db error.:-", err)
+				}
+				reply = &AE_Reply{Term: app.Term, Success: true, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied + 1}
+			}
+			// new logic ends
+			/* //old  logic starts
 			if app.Term < serv.ServState.my_term || serv.ServState.Log[app.PrevLogIndex].Term != app.PrevLogTerm {
 				if debug {
 					log.Println("Unmatched Append entry Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid, app, "Log is:-", serv.ServState.Log, serv.ServState.LastApplied, serv.ServState.CommitIndex)
@@ -589,6 +653,7 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 					log.Println("In Follwer:APP writing to db error.:-", err)
 				}
 			}
+			*/ //old logic ends
 			t_data, err := json.Marshal(reply)
 			if err != nil {
 				if debug {
@@ -1018,12 +1083,16 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 							t_data := make([]byte, 8)
 							binary.PutVarint(t_data, serv.ServState.LastApplied)
 							t_data1, err := json.Marshal(serv.ServState.Log[serv.ServState.CommitIndex])
-							if err != nil && debug {
-								log.Println("In Follwer:APP:-", err)
+							if err != nil {
+								if debug{
+									log.Println("In Leader :AER error in marshaling before writing to db:-", err)
+								}
 							}
 							err = db.Put(t_data, t_data1, nil) //writting to database.
-							if err != nil && debug {
-								log.Println("In Follwer:APP writing to db error.:-", err)
+							if err != nil{
+								if debug{
+									log.Println("In Leader:AER writing to db error.:-", err)
+								}
 							}
 							temp := serv.ServState.CommitIndex
 							serv.out <- &temp
@@ -1051,13 +1120,14 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 			}
 			timer.Reset(duration)
 			break
-
+/*
 		case L_I_REQ:
 			log.Println("Leader:- L_I_REQ Request from client received", enve)
 			break
 		default:
 			log.Println("Leader:- default", enve)
 			break
+*/
 		}
 
 	case logitem := <-serv.in:
@@ -1092,8 +1162,8 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 			_, exist := serv.ServState.Log[temp_pid]
 			if exist {
 				//entry := LogItem{Index: serv.ServState.NextIndex[pid], Term: int64(serv.ServState.my_term), Data: serv.ServState.Log[serv.ServState.NextIndex[pid]]}
-				entry := serv.ServState.Log[serv.ServState.NextIndex[pid]]
-				app := &AppendEntries{Term: serv.Cur_Term(), LeaderId: serv.ServerInfo.Pid(), PrevLogIndex: serv.ServState.Log[serv.ServState.NextIndex[pid]-1].Index, PrevLogTerm: serv.ServState.Log[serv.ServState.NextIndex[pid]-1].Term, Entries: entry, LeaderCommitIndex: serv.ServState.CommitIndex}
+				entry := serv.ServState.Log[temp_pid]
+				app := &AppendEntries{Term: serv.Cur_Term(), LeaderId: serv.ServerInfo.Pid(), PrevLogIndex: serv.ServState.Log[temp_pid-1].Index, PrevLogTerm: serv.ServState.Log[temp_pid-1].Term, Entries: entry, LeaderCommitIndex: serv.ServState.CommitIndex}
 				data, err = json.Marshal(app)
 				if err != nil {
 					if debug {

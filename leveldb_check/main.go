@@ -5,6 +5,8 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 //	"strconv"
 	"encoding/json"
+	"encoding/binary"
+	"os"
 )
 
 
@@ -25,7 +27,7 @@ type DataType struct{
 	Value interface{}
 }
 func main() {
-Fetch()
+Fetch(os.Args[1])
 }
 func Set(){
 	   	db, err := leveldb.OpenFile(DBFILE, nil)
@@ -55,19 +57,20 @@ func Set(){
 
 	   fmt.Println(data,err)
 }
-func Fetch(){
+func Fetch(str string){
 
 //	for i := 1; i < 8; i++ {
 	//	DBFILE := "../leveldb2_" + strconv.Itoa(i) + ".db"
-		db, err := leveldb.OpenFile(DBFILE, nil)
+		//db, err := leveldb.OpenFile(DBFILE, nil)
+		db, err := leveldb.OpenFile(str, nil)
 
 		iter := db.NewIterator(nil, nil)
 		for iter.Next() {
 			// Remember that the contents of the returned slice should not be modified, and
 			// only valid until the next call to Next.
-			key := iter.Key()
+			key,_ := binary.Varint(iter.Key())
 			value := iter.Value()
-			fmt.Println(string(key), string(value))
+			fmt.Println(key, string(value))
 		}
 		iter.Release()
 		err = iter.Error()

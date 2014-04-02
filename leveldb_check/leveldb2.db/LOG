@@ -1,6 +1,0 @@
-=============== Mar 27, 2014 (IST) ===============
-19:32:30.659072 db@open opening
-19:32:30.717770 db@janitor F·2 G·0
-19:32:30.717834 db@open done T·58.657ms
-19:32:30.717946 db@close closing
-19:32:30.717997 db@close done T·48.92us

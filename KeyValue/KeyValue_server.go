@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/binary"
+//	"encoding/binary" 
 	"encoding/json"
 	"fmt"
 	Raft "github.com/mgkanani/raft"
@@ -165,15 +165,21 @@ func Rename(key1 string, key2 string) bool {
 //When there is any log-entry from client which should be applied to state-machine or must be logged, this method is called.
 //This method must be called only when "rafttype" object is leader because this directly sends log-entry to leader.
 func handleReq(msg Raft.DataType) {
-	if true {
+//	if true {
 		//Send msg and fetch it's log-entry index.
 		index := rafttype.GetIndex(msg)
-		litem := &Raft.LogItem{Index: index, Term: int64(rafttype.Term()), Data: msg}
-		if debug {
-			log.Println("In handleReq,log-item created is:-", litem)
+		if debug{
+			log.Println("Log Index for new data is:-",index)
 		}
-		//send log-item to state machine.
-		rafttype.Inbox() <- litem
+		//Below lines are deprecated.
+		/*
+			litem := &Raft.LogItem{Index: index, Term: int64(rafttype.Term()), Data: msg}
+			if debug {
+				log.Println("In handleReq,log-item created is:-", litem)
+			}
+			//send log-item to state machine.Below line functionality has been deprecated.
+			//rafttype.Inbox() <- litem
+		*/
 		for {
 			//wait for response.
 			data := <-rafttype.Outbox()
@@ -186,7 +192,7 @@ func handleReq(msg Raft.DataType) {
 				break
 			}
 		}
-	}
+//	}
 }
 
 //This should be called at the start of Key-Value server. This is used for saving into Map after reading the log-entries.
@@ -207,9 +213,9 @@ func ConstructKeyValue(pid *int) {
 	var content Raft.DataType
 
 	for iter.Next() {
-		CommitIndex, _ := binary.Varint(iter.Key())
 		if debug {
-			log.Println("During iteration,converted key from []byte to int64:-", CommitIndex, "\t Error is:-", err)
+			//CommitIndex, _ := binary.Varint(iter.Key())
+			//log.Println("During iteration,converted key from []byte to int64:-", CommitIndex)
 		}
 		err := json.Unmarshal(iter.Value(), &logitem) //decode message into Envelope object.
 		if err != nil {
@@ -228,11 +234,11 @@ func ConstructKeyValue(pid *int) {
 				for key, value := range testing{
 					fmt.Println(reflect.TypeOf(value),key,value)
 				}
+				//log.Println(testing["Type"])
 			*/
-			//log.Println(testing["Type"])
 			content = Raft.DataType{Type: int8(int(testing["Type"].(float64))), Key: testing["Key"].(string), Value: testing["Value"]}
 			if debug {
-				log.Println("created object from log-entry is:-", content)
+				//log.Println("created object from log-entry is:-", content)
 			}
 			switch content.Type {
 			case SET, UPDATE: //set value
