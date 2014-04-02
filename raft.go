@@ -445,7 +445,7 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 					        	                }
 						                        return
 				*/
-			} else if req.LastLogIndex >= serv.ServState.LastApplied && req.Term > serv.Cur_Term() && req.LastLogTerm >= serv.ServState.Log[int64(len(serv.ServState.Log))].Term {
+			} else if req.LastLogIndex >= serv.ServState.LastApplied && req.Term > serv.Cur_Term() && req.LastLogTerm >= serv.ServState.Log[serv.ServState.LastApplied].Term {
 				//higher term received, reset timer,send accept for request.
 				timer.Reset(duration) //reset timer
 				//fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid, " Request Recieved.", req)
@@ -942,10 +942,14 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 	//duration := 1*time.Second + time.Duration(rand.Intn(51))*time.Millisecond//heartbeat timer.
 	duration := 500*time.Millisecond + time.Duration(rand.Intn(51))*time.Millisecond //heartbeat time-duration.
 	timer := time.NewTimer(duration)                                                 //start timer.
-
+	new_duration:=3*time.Second + duration
+	timer_alive := time.NewTimer(new_duration)                                                 //start timer.
+  for{
 	select { //used for selecting channel for given event.
 	case enve := <-serv.ServerInfo.Inbox():
 		//timer.Reset(duration)
+		log.Println("=====Reset Timer")
+		timer_alive.Reset(new_duration)
 		switch enve.MsgId {
 		case REP:
 			//reply recvd
@@ -956,6 +960,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 					log.Println("In Leader, Unknown thing happened", enve.Msg.(string))
 				}
 				timer.Stop() //stop timer.
+				timer_alive.Stop() //stop timer.
 				return
 			} else if reply.Term == serv.Cur_Term() {
 				//fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid, "Reply Recvd:-", reply, enve, enve.Msg.(string))
@@ -981,6 +986,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 					if n >= totalVotes {
 						//RType.Leader = 0
 						timer.Stop() //stop timer.
+						timer_alive.Stop() //stop timer.
 						mutex.Lock()
 						serv.ServState.UpdateVote_For(0)
 						serv.ServState.UpdateState(0)                //become follower.
@@ -1016,11 +1022,14 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 					}
 				}
 				timer.Stop() //stop timer.
+				timer_alive.Stop() //stop timer.
 				mutex.Lock()
 				serv.ServState.UpdateState(0) //become follower.
 				serv.ServState.UpdateVote_For(req.CandidateId)
 				serv.ServState.UpdateTerm(req.Term)
 				serv.ServState.followers = make(map[int]int) //clear followers list.
+                		serv.ServState.NextIndex = make(map[int]int64) //clear followers list.
+		                serv.ServState.MatchIndex = make(map[int]int64) //clear followers list.
 				mutex.Unlock()
 				envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: string(data)}
 				serv.ServerInfo.Outbox() <- &envelope
@@ -1137,6 +1146,20 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 
 		*/
 
+	case <-timer_alive.C:
+		log.Println("===== Timer Expire")
+		timer.Stop() //stop timer.
+                timer_alive.Stop() //stop timer.
+                mutex.Lock()
+                serv.ServState.UpdateState(0) //become follower.
+                serv.ServState.UpdateVote_For(0)
+                serv.ServState.followers = make(map[int]int) //clear followers list.
+                serv.ServState.NextIndex = make(map[int]int64) //clear followers list.
+                serv.ServState.MatchIndex = make(map[int]int64) //clear followers list.
+                mutex.Unlock()
+		return
+
+
 	case <-timer.C:
 		timer.Reset(duration)
 		//send heartbeat to all servers
@@ -1206,7 +1229,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 		//log.Println("Leader -", serv.ServerInfo.MyPid, " has awaken from sleep.")
 
 	}
-	timer.Stop()
+  }
 	if debug {
 		log.Println("Leader ouside switch")
 	}
