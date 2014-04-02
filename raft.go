@@ -399,7 +399,7 @@ func (serv *Server) start() {
 
 //Server goes to Follower state.
 func (serv *Server) StateFollower(mutex *sync.Mutex) {
-	duration := 700*time.Millisecond + time.Duration(rand.Intn(151))*10*time.Millisecond
+	duration := 700*time.Millisecond + time.Duration(rand.Intn(300))*1*time.Millisecond
 	/*	if serv.ServerInfo.MyPid == 1 {
 			duration = 500 * time.Millisecond
 		}
@@ -949,7 +949,7 @@ func (serv *Server) StateCandidate(mutex *sync.Mutex) {
 func (serv *Server) StateLeader(mutex *sync.Mutex) {
 
 	//duration := 1*time.Second + time.Duration(rand.Intn(51))*time.Millisecond//heartbeat timer.
-	duration := 500*time.Millisecond + time.Duration(rand.Intn(51))*time.Millisecond //heartbeat time-duration.
+	duration := 80*time.Millisecond + time.Duration(rand.Intn(51))*time.Millisecond //heartbeat time-duration.
 	timer := time.NewTimer(duration)                                                 //start timer.
 	new_duration:=3*time.Second + duration
 	timer_alive := time.NewTimer(new_duration)                                                 //start timer.
@@ -1121,6 +1121,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 						}
 					}
 				}
+			/* //all new messages will be sent on timeout.
 				_, exist := serv.ServState.Log[aer.ExpectedIndex]
 				if exist {
 					//entry := LogItem{Index: aer.ExpectedIndex, Term: int64(serv.ServState.my_term), Data: serv.ServState.Log[aer.ExpectedIndex]}
@@ -1138,6 +1139,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 						log.Println("Leader:- new log entry sent is:-", app, "NextIndex:-", serv.ServState.NextIndex, "MatchIndex", serv.ServState.MatchIndex)
 					}
 				}
+			*/
 //			}
 			//timer.Reset(duration)
 			break
@@ -1185,7 +1187,8 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 			}
 		}
 		// braodcast the requestFor vote.
-		serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: HEART, Msg: string(data)}
+
+		//serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: HEART, Msg: string(data)}
 
 		//send Append entry requests to followers
 		for _, pid := range serv.ServState.followers {
@@ -1210,6 +1213,8 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 				if debug {
 					log.Println("In timeout ,Leader:- new log entry sent is:-", app)
 				}
+			}else{
+				serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: pid, MsgId: HEART, Msg: string(data)}
 			}
 		}
 
