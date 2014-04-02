@@ -6,17 +6,14 @@ import (
 	"fmt"
 	Raft "github.com/mgkanani/raft"
 	"github.com/syndtr/goleveldb/leveldb"
-	//	"io"
 	"io/ioutil"
 	"log"
-	//	"net"
+	"net/http"
 	"os"
 	"strconv"
-	//	"strings"
-	"net/http"
 	"sync"
 
-//	"reflect"
+//	"reflect" //used for identifying the type of interface's data.
 )
 
 const (
@@ -25,13 +22,12 @@ const (
 	UPDATE = 3
 	DELETE = 4
 
-	debug = true
+	debug         = true
+	CONFIG        = "KeyValue.json"
+	DBFILE_PREFIX = "./leveldb2"
 )
 
-
-
 var Map map[string]interface{}
-var Pending map[int64]bool
 
 type MsgStruct struct {
 	Key  int64
@@ -54,7 +50,6 @@ var rafttype *Raft.RaftType
 
 var myid = 0
 
-//var mut sync.Mutex
 var mut sync.RWMutex
 
 var Servers map[int]string
@@ -65,95 +60,64 @@ type Message struct {
 	Value string
 }
 
-/*
-func index(w http.ResponseWriter, r *http.Request) {
-        http.Redirect(w , r , "http://10.5.0.26:80/", http.StatusMovedPermanently)
-
-        var person Message
-        body, e := ioutil.ReadAll(r.Body)
-        json.Unmarshal(body, &person)
-
-        fmt.Println(person,e)
-        response, _ := json.Marshal(person)
-        fmt.Fprintf(w, string(response))
-
-}
-*/
-
 func main() {
-
-	file, e := ioutil.ReadFile("KeyValue.json")
+	//Read parametes from configuration file.
+	file, e := ioutil.ReadFile(CONFIG)
 	if e != nil {
-		fmt.Printf("File error: %v\n", e)
+		if debug {
+			log.Printf("File error: %v\n", e)
+		}
 		os.Exit(1)
 	}
 	//decoding file's input and save data into variables.
 	var obj jsonobject
 	err := json.Unmarshal(file, &obj)
 	if err != nil {
-		fmt.Println("error:", err)
+		if debug {
+			log.Println("error:", err)
+		}
 	}
 	Servers = make(map[int]string)
 	for _, value := range obj.Object.Servers {
 		Servers[value.MyPid] = value.Socket
 	}
-	fmt.Println(Servers)
+	if debug {
+		log.Println("Servers for Key-Value:-", Servers)
+	}
 
 	if len(os.Args) != 2 {
 		fmt.Println("format:-KeyValue pid")
 		return
 	}
 	myid, err := strconv.Atoi(os.Args[1])
-	if err != nil {
-		fmt.Println(err)
+	_, present := Servers[myid]
+	if err != nil || !present {
+		fmt.Println("Please enter valid server id which must be present into", CONFIG, "File. Error is:-", err)
 		os.Exit(2)
 	}
 	socket := Servers[myid]
 
-	Map = make(map[string]interface{})
-	Pending = make(map[int64]bool)
+	Map = make(map[string]interface{}) // create's Map.
 
-	/*
-		addr_port, err := net.ResolveTCPAddr("tcp", socket)
-		ln, err := net.ListenTCP("tcp", addr_port)
-		if err != nil {
-			fmt.Println("use different port number, given port already in use.\nin", err.Error())
-			return
-		}
-
-		fmt.Println("Listening at addr:port", addr_port)
-		defer ln.Close()
-	*/
 	var valid bool
 	flagid := &myid
 
+	//Initialize Map.
 	ConstructKeyValue(flagid)
 
-	valid, rafttype = Raft.InitServer(myid, "./config.json", debug)
+	// Initialize raft-server and starts it.
+	valid, rafttype = Raft.InitServer(myid, "./config.json", debug) // this will return raft-object and valid= true if it is successful.
 
-	fmt.Println("valid:-", valid)
+	if debug {
+		log.Println("Checking whether raft server started status:-", valid)
+	}
 	if valid {
-		/*		var is_leader int
-				for {
-					conn, err := ln.Accept()
-					rafttype.Leader(&is_leader)
-					fmt.Println("is_leader:-", is_leader)
-					if myid == is_leader {
-						go handle_client(conn)
-					} else {
-						_, _ = conn.Write([]byte("Please contact Server -" + Servers[rafttype.Vote()]))
-						conn.Close()
-					}
-				}
-		*/
-
 		http.HandleFunc("/", index)
 		err = http.ListenAndServe(socket, nil)
 		if err != nil {
-			fmt.Println("Address format is ipaddr:port_num")
+			fmt.Println("Address format must be like ipaddr:port_num in config file", CONFIG)
 			return
 		}
-
 	} else {
 		log.Println("error generated in starting server according to configuration file")
 		os.Exit(1)
@@ -162,6 +126,13 @@ func main() {
 
 func Get_Val(key string) interface{} {
 	return Map[key]
+	/*	temp,ok:=Map[key]
+		if ok{
+			return temp
+		}else{
+			return ""
+		}
+	*/
 }
 
 func Set_Val(key string, val interface{}) {
@@ -179,6 +150,7 @@ func Delete(key string) {
 	return
 }
 
+//currently not used this.
 func Rename(key1 string, key2 string) bool {
 	ok := true
 	_, ok = Map[key2] //first check key2 must not consist any-value.
@@ -190,30 +162,44 @@ func Rename(key1 string, key2 string) bool {
 	return !ok
 }
 
+//When there is any log-entry from client which should be applied to state-machine or must be logged, this method is called.
+//This method must be called only when "rafttype" object is leader because this directly sends log-entry to leader.
 func handleReq(msg Raft.DataType) {
 	if true {
+		//Send msg and fetch it's log-entry index.
 		index := rafttype.GetIndex(msg)
 		litem := &Raft.LogItem{Index: index, Term: int64(rafttype.Term()), Data: msg}
-		fmt.Println(litem)
+		if debug {
+			log.Println("In handleReq,log-item created is:-", litem)
+		}
+		//send log-item to state machine.
 		rafttype.Inbox() <- litem
 		for {
+			//wait for response.
 			data := <-rafttype.Outbox()
-			//fmt.Println(reflect.TypeOf(data),*(data.(*int64)),index)
+			/*
+				if debug{
+					log.Println(reflect.TypeOf(data),*(data.(*int64)),index)
+				}*/
+			//checks whether it the same message which has been replicated successfully.
 			if *(data.(*int64)) == index {
 				break
 			}
 		}
-		//Pending[index] = false
 	}
 }
 
+//This should be called at the start of Key-Value server. This is used for saving into Map after reading the log-entries.
 func ConstructKeyValue(pid *int) {
-	DBFILE := "./leveldb2"
-	DBFILE += "_" + strconv.Itoa(*pid) + ".db"
-	log.Println(*pid, DBFILE)
+	DBFILE := DBFILE_PREFIX + "_" + strconv.Itoa(*pid) + ".db"
+	if debug {
+		log.Println("Id of server:-", *pid, "\t DB FileName:-", DBFILE)
+	}
 	db, err := leveldb.OpenFile(DBFILE, nil)
 	if err != nil {
-		log.Println("err in opening file for leveldb:-", DBFILE, "error is:-", err)
+		if debug {
+			log.Println("err in opening leveldb file:-", DBFILE, "\t error is:-", err)
+		}
 	}
 	iter := db.NewIterator(nil, nil)
 
@@ -221,27 +207,33 @@ func ConstructKeyValue(pid *int) {
 	var content Raft.DataType
 
 	for iter.Next() {
-		//t1,n1:=binary.Varint(iter.Key())
-		//fmt.Println(t1,n1)
-		//CommitIndex, err := strconv.ParseInt(string(iter.Key()), 10, 64)
 		CommitIndex, _ := binary.Varint(iter.Key())
-		fmt.Println(CommitIndex, err)
+		if debug {
+			log.Println("During iteration,converted key from []byte to int64:-", CommitIndex, "\t Error is:-", err)
+		}
 		err := json.Unmarshal(iter.Value(), &logitem) //decode message into Envelope object.
 		if err != nil {
-			log.Println("error in Marshaling during ConstructKeyValue", err)
+			if debug {
+				log.Println("error in marshaling(converting from value to log-item's object):-", err, "KeyValue.go@ConstructKeyValue,in iter.Next() loop")
+			}
 		}
-		fmt.Println("response of conversion from log to log item", logitem)
+		if debug {
+			log.Println("converted to log-item from bytes:-", logitem)
+		}
 		//  now set/get/delete key-value in Map based on Log
 		if logitem.Data != nil {
 			testing := logitem.Data.(map[string]interface{})
 			/*
+				// uncomment to see the type of each field of testing variable.
 				for key, value := range testing{
 					fmt.Println(reflect.TypeOf(value),key,value)
 				}
 			*/
-			fmt.Println(testing["Type"])
+			//log.Println(testing["Type"])
 			content = Raft.DataType{Type: int8(int(testing["Type"].(float64))), Key: testing["Key"].(string), Value: testing["Value"]}
-			fmt.Println(content)
+			if debug {
+				log.Println("created object from log-entry is:-", content)
+			}
 			switch content.Type {
 			case SET, UPDATE: //set value
 				if content.Value != nil {
@@ -255,87 +247,115 @@ func ConstructKeyValue(pid *int) {
 		}
 	}
 	iter.Release()
-	log.Println("Error if:-", iter.Error(), "Map is:-", Map)
+	if iter.Error() != nil {
+		if debug {
+			log.Println("Error during iteration on data of log-entries:-", iter.Error())
+		}
+	}
+	if debug {
+		PrintMap()
+	}
 	defer db.Close()
-
 }
 
-//func handle_client(c net.Conn) {
+func PrintMap() {
+	if debug {
+		log.Println("\n\nThe content of Map-variable is:-\n", Map, "\n\n\n\n")
+	}
+}
+
 func index(w http.ResponseWriter, r *http.Request) {
-	var is_leader int
-	rafttype.Leader(&is_leader)
+	if r.Method == "POST" {
+		var is_leader int
+		rafttype.Leader(&is_leader)
+		//is_leader will have >0 if it is leader other wise it will send 0 for follower,-1 for candidate.
 
-	if is_leader > 0 {
-
-		//	for {
-		//var msgs Message
-		var msgs Raft.DataType
-		body, e := ioutil.ReadAll(r.Body)
-		json.Unmarshal(body, &msgs)
-
-		fmt.Println(msgs, e)
-		fmt.Println("client request has been received on:-", r.Host, msgs, e)
-
-		switch msgs.Type {
-		case SET: //SET
-			//val := str[2]
-			//msg := msgs//Raft.DataType{Type: SET, Key: key, Value: val}
-			if debug{
-				fmt.Println(" In SET case:-")
+		if is_leader > 0 {
+			var msgs Raft.DataType
+			body, e := ioutil.ReadAll(r.Body)
+			if e != nil {
+				if debug {
+					log.Println("error @KeyValue.go: in 'index' func :if : ReadAll", e)
+				}
 			}
-			handleReq(msgs)
-			mut.Lock()
-			//Map[key] = val
-			Set_Val(msgs.Key, msgs.Value)
-			mut.Unlock()
-			fmt.Printf("set Map[%s]=%s", msgs.Key, msgs.Value)
+			e = json.Unmarshal(body, &msgs)
 
-		case UPDATE: //Update
-			if debug{
-				fmt.Println(" In UPDATE case:-")
+			if e != nil {
+				if debug {
+					log.Println("error @KeyValue.go: in 'index' func :if :Unmarshal", e)
+				}
 			}
-			//val := str[2]
-			//msg := Raft.DataType{Type: UPDATE, Key: key, Value: val}
-			handleReq(msgs)
-			mut.Lock()
-			//Map[key] = val
-			Update_Val(msgs.Key, msgs.Value)
-			mut.Unlock()
-			//fmt.Printf("update Map[%s]=%s", str[1], str[2])
+			if debug {
+				log.Println("client request has been received on:-", r.Host, "\t message is :-", msgs)
+			}
 
-		case GET: //Get
-			if debug{
-				fmt.Println(" In GET case:-")
-			}
-			mut.RLock()
-			temp := Map[msgs.Key].(string)
-			mut.RUnlock()
-			fmt.Fprintf(w, temp)
+			switch msgs.Type {
+			case SET:
+				if debug {
+					fmt.Println(" In SET case:-")
+				}
+				handleReq(msgs)
+				mut.Lock()
+				//Map[key] = val
+				Set_Val(msgs.Key, msgs.Value)
+				mut.Unlock()
+				if debug {
+					log.Printf("\nSet:: Map[%s]=%s\n", msgs.Key, msgs.Value)
+				}
 
-		case DELETE: //Delete
-			if debug{
-				fmt.Println(" In DELETE case:-")
+			case UPDATE: //Update
+				if debug {
+					fmt.Println(" In UPDATE case:-")
+				}
+				handleReq(msgs)
+				mut.Lock()
+				//Map[key] = val
+				Update_Val(msgs.Key, msgs.Value)
+				mut.Unlock()
+				if debug {
+					log.Printf("\nUpdate:: Map[%s]=%s\n", msgs.Key, msgs.Value)
+				}
+
+			case GET: //Get
+				if debug {
+					fmt.Println(" In GET case:-")
+				}
+				mut.RLock()
+				temp := Get_Val(msgs.Key)
+				mut.RUnlock()
+				if temp != nil {
+					data := temp.(string)
+					fmt.Fprintf(w, data)
+					if debug {
+						log.Printf("Sent data to client in reply is:-", temp)
+					}
+				} else {
+					fmt.Fprintf(w, "")
+				}
+
+			case DELETE: //Delete
+				if debug {
+					fmt.Println(" In DELETE case:-")
+				}
+				//msg := Raft.DataType{Type: DELETE, Key: key}
+				handleReq(msgs)
+				mut.Lock()
+				Delete(msgs.Key)
+				mut.Unlock()
+				if debug {
+					log.Println("\nDeleted key from map is ", msgs.Key)
+				}
 			}
-			//msg := Raft.DataType{Type: DELETE, Key: key}
-			handleReq(msgs)
-			mut.Lock()
-			Delete(msgs.Key)
-			mut.Unlock()
-			fmt.Printf("delete Map[%s]", msgs.Key)
+		} else {
+			res := rafttype.Vote()
+			new_url := "http://" + Servers[res] + "/"
+			var msgs Raft.DataType
+			body, e := ioutil.ReadAll(r.Body)
+			json.Unmarshal(body, &msgs)
+			if debug {
+				fmt.Println("Request recieved at:-", r.Host, ",redirected to:-", new_url, "\n Server has voted to :-", res, "Data is:-", msgs, "Error status:-", e)
+			}
+			http.Redirect(w, r, new_url, 303)
 		}
-		//	}
-	} else {
-		//new_url:="http://"+Servers[res]+"/"
-		//fmt.Println("client request has been received on:-",r.Host,",redirected to:-",new_url,"\n Server has voted to :-",res);
-
-		res := rafttype.Vote()
-		new_url := "http://" + Servers[res] + "/"
-		var msgs Raft.DataType
-		body, e := ioutil.ReadAll(r.Body)
-		json.Unmarshal(body, &msgs)
-		fmt.Println("client request has been received on:-", r.Host, ",redirected to:-", new_url, "\n Server has voted to :-", res, "Data is:-", msgs, e)
-
-		http.Redirect(w, r, new_url, 303)
-		//fmt.Println("error:-",e)
 	}
 }
