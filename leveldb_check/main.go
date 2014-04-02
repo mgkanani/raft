@@ -9,7 +9,8 @@ import (
 
 
 const (
-    DBFILE = "../leveldb2_1.db"
+    //DBFILE = "../leveldb2_1.db"
+    DBFILE = "./leveldb2_1.db"
 )
 
 type LogItem struct{
@@ -24,6 +25,9 @@ type DataType struct{
 	Value interface{}
 }
 func main() {
+Fetch()
+}
+func Set(){
 	   	db, err := leveldb.OpenFile(DBFILE, nil)
 		var log LogItem
 		var temp DataType;
@@ -50,10 +54,11 @@ func main() {
 	   data, err = db.Get([]byte("key"), nil)
 
 	   fmt.Println(data,err)
-/*
+}
+func Fetch(){
 
-	for i := 1; i < 8; i++ {
-		DBFILE := "../leveldb2_" + strconv.Itoa(i) + ".db"
+//	for i := 1; i < 8; i++ {
+	//	DBFILE := "../leveldb2_" + strconv.Itoa(i) + ".db"
 		db, err := leveldb.OpenFile(DBFILE, nil)
 
 		iter := db.NewIterator(nil, nil)
@@ -68,6 +73,6 @@ func main() {
 		err = iter.Error()
 		fmt.Println(err)
 		defer db.Close()
-	}
-*/
+//	}
+
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	//	"flag"
 	"fmt"
@@ -217,9 +218,15 @@ func ConstructKeyValue(pid *int) {
 	var content Raft.DataType
 
 	for iter.Next() {
-		CommitIndex, err := strconv.ParseInt(string(iter.Key()), 10, 64)
+		//t1,n1:=binary.Varint(iter.Key())
+		//fmt.Println(t1,n1)
+		//CommitIndex, err := strconv.ParseInt(string(iter.Key()), 10, 64)
+		CommitIndex, _ := binary.Varint(iter.Key())
 		fmt.Println(CommitIndex, err)
-		err = json.Unmarshal(iter.Value(), &logitem) //decode message into Envelope object.
+		err := json.Unmarshal(iter.Value(), &logitem) //decode message into Envelope object.
+		if err != nil {
+			log.Println("error in Marshaling during ConstructKeyValue", err)
+		}
 		fmt.Println("response of conversion from log to log item", logitem)
 		//  now set/get/delete key-value in Map based on Log
 		if logitem.Data != nil {

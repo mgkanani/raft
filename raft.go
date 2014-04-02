@@ -1,7 +1,9 @@
 package raft
 
 import (
+	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	cluster "github.com/mgkanani/cluster"
 	"github.com/syndtr/goleveldb/leveldb"
 	"log"
@@ -9,8 +11,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
-	"fmt"
 )
 
 const (
@@ -317,7 +317,8 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 			for iter.Next() {
 				// Remember that the contents of the returned slice should not be modified, and
 				// only valid until the next call to Next.
-				serv.ServState.CommitIndex, err = strconv.ParseInt(string(iter.Key()), 10, 64)
+				//serv.ServState.CommitIndex, err = strconv.ParseInt(string(iter.Key()), 10, 64)
+				serv.ServState.CommitIndex, _ = binary.Varint(iter.Key())
 				err = json.Unmarshal(iter.Value(), &logitem) //decode message into Envelope object.
 				if debug {
 					log.Println("In InitServer of Raft,", logitem, err)
@@ -575,7 +576,9 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 				serv.ServState.Log[app.PrevLogIndex+1] = app.Entries
 				serv.ServState.LastApplied = app.PrevLogIndex + 1
 				serv.ServState.CommitIndex = app.LeaderCommitIndex
-				t_data, err := json.Marshal(serv.ServState.LastApplied)
+				//t_data, err := json.Marshal(serv.ServState.LastApplied)
+				t_data := make([]byte, 8)
+				binary.PutVarint(t_data, serv.ServState.LastApplied)
 				t_data1, err := json.Marshal(app.Entries)
 				if err != nil && debug {
 					log.Println("In Follwer:APP:-", err)
@@ -1010,7 +1013,9 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 						total++
 						if n < total {
 							serv.ServState.CommitIndex++
-							t_data, err := json.Marshal(serv.ServState.CommitIndex)
+							//t_data, err := json.Marshal(serv.ServState.CommitIndex)
+							t_data := make([]byte, 8)
+							binary.PutVarint(t_data, serv.ServState.LastApplied)
 							t_data1, err := json.Marshal(serv.ServState.Log[serv.ServState.CommitIndex])
 							if err != nil && debug {
 								log.Println("In Follwer:APP:-", err)

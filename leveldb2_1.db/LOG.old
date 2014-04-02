@@ -1,9 +1,6 @@
 =============== Mar 30, 2014 (IST) ===============
-19:37:50.187100 db@open opening
-19:37:50.187236 journal@recovery F·1
-19:37:50.187704 journal@recovery recovering @723
-19:37:50.319776 mem@flush created L0@725 N·1 S·181B "7,v127":"7,v127"
-19:37:50.343750 db@janitor F·4 G·0
-19:37:50.343823 db@open done T·156.669678ms
-19:37:50.350493 db@close closing
-19:37:50.350603 db@close done T·103.36us
+19:37:50.356865 db@open opening
+19:37:50.357023 journal@recovery F·1
+19:37:50.396647 journal@recovery recovering @726
+19:37:50.421390 db@janitor F·4 G·0
+19:37:50.421449 db@open done T·64.52556ms
