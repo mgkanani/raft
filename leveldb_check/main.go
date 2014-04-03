@@ -63,7 +63,17 @@ func Fetch(str string){
 	//	DBFILE := "../leveldb2_" + strconv.Itoa(i) + ".db"
 		//db, err := leveldb.OpenFile(DBFILE, nil)
 		db, err := leveldb.OpenFile(str, nil)
-
+		var i int64;
+		temp := make([]byte,8)
+		i=0
+		for{
+			i++
+			binary.PutVarint(temp,i)
+			value,err:=db.Get(temp, nil)
+			fmt.Println(i, string(value),err)
+			if err!=nil{break}
+		}
+/*
 		iter := db.NewIterator(nil, nil)
 		for iter.Next() {
 			// Remember that the contents of the returned slice should not be modified, and
@@ -74,6 +84,7 @@ func Fetch(str string){
 		}
 		iter.Release()
 		err = iter.Error()
+*/
 		fmt.Println(err)
 		defer db.Close()
 //	}

@@ -1,7 +1,7 @@
 package main
 
 import (
-//	"encoding/binary" 
+	"encoding/binary" 
 	"encoding/json"
 	"fmt"
 	Raft "github.com/mgkanani/raft"
@@ -207,26 +207,31 @@ func ConstructKeyValue(pid *int) {
 			log.Println("err in opening leveldb file:-", DBFILE, "\t error is:-", err)
 		}
 	}
-	iter := db.NewIterator(nil, nil)
+	//iter := db.NewIterator(nil, nil)
 
 	var logitem Raft.LogItem
 	var content Raft.DataType
 
-	for iter.Next() {
-		if debug {
-			//CommitIndex, _ := binary.Varint(iter.Key())
-			//log.Println("During iteration,converted key from []byte to int64:-", CommitIndex)
-		}
-		err := json.Unmarshal(iter.Value(), &logitem) //decode message into Envelope object.
-		if err != nil {
-			if debug {
-				log.Println("error in marshaling(converting from value to log-item's object):-", err, "KeyValue.go@ConstructKeyValue,in iter.Next() loop")
-			}
-		}
+        temp := make([]byte,8)
+	var i int64;
+	i=0
+                        for{
+                                i++
+                                binary.PutVarint(temp,i)
+                                value,err:=db.Get(temp, nil)
+                                if err!=nil{
+                                        log.Println("Error in Get:-",err)
+                                        break
+                                }
+                                err = json.Unmarshal(value, &logitem) //decode message into Envelope object.
+                                if err!=nil{
+                                        if debug {
+                                                log.Println("In InitServer of Raft,Error during Marshaling:-",err)
+                                        }
+                                }
 		if debug {
 			log.Println("converted to log-item from bytes:-", logitem)
 		}
-		//  now set/get/delete key-value in Map based on Log
 		if logitem.Data != nil {
 			testing := logitem.Data.(map[string]interface{})
 			/*
@@ -252,12 +257,13 @@ func ConstructKeyValue(pid *int) {
 			}
 		}
 	}
-	iter.Release()
+/*	iter.Release()
 	if iter.Error() != nil {
 		if debug {
 			log.Println("Error during iteration on data of log-entries:-", iter.Error())
 		}
 	}
+*/
 	if debug {
 		PrintMap()
 	}
