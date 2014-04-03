@@ -111,7 +111,9 @@ ports :-45001,45002,...,45007    ->This is for Key-value servers.
 
 -Tested on network partition problem.
 
--Latest manual test is performed for 2-client simultaneously sending 200 requests and 7-servers were there. One by one leader is killed, everytime new leader elected in less than 1 or 2 sec till the numbers of healthy servers was 4. After some time one by one server started and at last their leveldb content were checked and they found identical.
+-Latest manual test is performed for 2-client simultaneously sending 200 requests and 7-servers were there.
+One by one leader is killed, everytime new leader elected in less than 1 or 2 sec till the numbers of healthy servers was 4.
+After some time one by one server started and at last their leveldb content were checked and they found identical.
 
 ```
 
