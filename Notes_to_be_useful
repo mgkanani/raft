@@ -1,0 +1,6 @@
+-> In implementation of http's POST request redirection, They are handling only for status code 302 and 303 but for GET 
+request they are handling for 30x status code.
+
+->zmq can hanlde message of any size.
+
+->encoding/binay is used for int64 to []byte conversion.
