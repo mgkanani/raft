@@ -22,7 +22,8 @@ const (
 	UPDATE = 3
 	DELETE = 4
 
-	debug         = true
+	debug         = false
+//	debug         = true
 	CONFIG        = "KeyValue.json"
 	DBFILE_PREFIX = "./leveldb2"
 )

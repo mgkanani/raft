@@ -21,6 +21,7 @@ ZMQ:- github.com/pebbe/zmq4
 go get github.com/mgkanani/cluster
 go get github.com/mgkanani/raft
 go install github.com/mgkanani/raft
+go install github.com/mgkanani/raft/KeyValue
 ```
 
 
@@ -36,6 +37,10 @@ go test github.com/mgkanani/raft
 -Tests are performed on 3-different machines(From 7 servers 2,2,3 servers on respective machines) for testing the working of Raft.
 
 -```go test ``` performs testing of raft by killing each process one by one after every 15-sec. This will be performed 3 times.
+
+
+-2 clients sending 200 requests sending simultaneously, 7-servers were running on single host. Leader was killed manually[Cntr+c] when it reached to only 3 servers, there was no leader, then one by one server started. Then Leveldb data checked and found identical.
+
 
 
 ## To modify certain parameters  OR  Detailed Testing:-
