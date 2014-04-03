@@ -1,4 +1,5 @@
-#raft
+
+##Raft
 A `raft` cluster contains several servers which allows the system to tolerate  failure(for 5 servers, it will be 2). This template/pkg is implementing this algorithm. In this, one leader will be selected among the servers.
 
 
