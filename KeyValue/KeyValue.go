@@ -22,8 +22,8 @@ const (
 	UPDATE = 3
 	DELETE = 4
 
-	debug         = false
-//	debug         = true
+	debug = false
+	//	debug         = true
 	CONFIG        = "KeyValue.json"
 	DBFILE_PREFIX = "./leveldb2"
 )
@@ -221,7 +221,7 @@ func ConstructKeyValue(pid *int) {
 		binary.PutVarint(temp, i)
 		value, err := db.Get(temp, nil)
 		if err != nil {
-			if debug{
+			if debug {
 				log.Println("Error in Get:-", err)
 			}
 			break

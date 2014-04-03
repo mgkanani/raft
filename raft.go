@@ -333,7 +333,7 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 				binary.PutVarint(temp, i) //int64 to []byte conversion
 				value, err := db.Get(temp, nil)
 				if err != nil {
-					if debug{
+					if debug {
 						log.Println("Error in Get:-", err)
 					}
 					break
@@ -944,7 +944,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 		select { //used for selecting channel for given event.
 		case enve := <-serv.ServerInfo.Inbox():
 			//timer.Reset(duration)
-			if debug{
+			if debug {
 				log.Println("=====Reset Timer")
 			}
 			timer_alive.Reset(new_duration)
