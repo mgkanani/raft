@@ -8,7 +8,9 @@ A `raft` cluster contains several servers which allows the system to tolerate  f
 
 #Extension
 -if request comes to follower,redirecting it to leader. ------->completed
+
 -use of zmq/http(redirect will be simpler) instead of relying on simple tcp client-server. ------->completed
+
 -automate test for Key-Value. 
 
 #Dependencies:-
