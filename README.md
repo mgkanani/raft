@@ -11,7 +11,7 @@ A `raft` cluster contains several servers which allows the system to tolerate  f
 
 -use of zmq/http(redirect will be simpler) instead of relying on simple tcp client-server. ------->completed
 
--automate test for Key-Value. ------->imcomplete but enough number of tests have been performed.
+-automate test for Key-Value. ------->completed.
 
 #Dependencies:-
 LevelDB:- github.com/syndtr/goleveldb/leveldb
