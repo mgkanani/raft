@@ -1,4 +1,4 @@
-package main
+package KeyValue
 
 import (
 	"encoding/binary"
@@ -221,7 +221,9 @@ func ConstructKeyValue(pid *int) {
 		binary.PutVarint(temp, i)
 		value, err := db.Get(temp, nil)
 		if err != nil {
-			log.Println("Error in Get:-", err)
+			if debug{
+				log.Println("Error in Get:-", err)
+			}
 			break
 		}
 		err = json.Unmarshal(value, &logitem) //decode message into Envelope object.

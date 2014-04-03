@@ -333,7 +333,9 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 				binary.PutVarint(temp, i) //int64 to []byte conversion
 				value, err := db.Get(temp, nil)
 				if err != nil {
-					log.Println("Error in Get:-", err)
+					if debug{
+						log.Println("Error in Get:-", err)
+					}
 					break
 				}
 				err = json.Unmarshal(value, &logitem) //decode message into Envelope object.
@@ -942,7 +944,9 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 		select { //used for selecting channel for given event.
 		case enve := <-serv.ServerInfo.Inbox():
 			//timer.Reset(duration)
-			log.Println("=====Reset Timer")
+			if debug{
+				log.Println("=====Reset Timer")
+			}
 			timer_alive.Reset(new_duration)
 			switch enve.MsgId {
 			case REP:
