@@ -6,5 +6,6 @@ request they are handling for 30x status code.
 ->encoding/binay is used for int64 to []byte conversion.
 
 ->to maunally perform the test of KeyValue servers:-
-    -start servers using ```KeyValue pid``` 
+    -start servers using ```KeyValue pid```
+    
     -start client using ```for i in {1..200}; do ./client; echo $i ;done```
