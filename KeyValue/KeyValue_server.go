@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/binary" 
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	Raft "github.com/mgkanani/raft"
@@ -165,34 +165,34 @@ func Rename(key1 string, key2 string) bool {
 //When there is any log-entry from client which should be applied to state-machine or must be logged, this method is called.
 //This method must be called only when "rafttype" object is leader because this directly sends log-entry to leader.
 func handleReq(msg Raft.DataType) {
-//	if true {
-		//Send msg and fetch it's log-entry index.
-		index := rafttype.GetIndex(msg)
-		if debug{
-			log.Println("Log Index for new data is:-",index)
+	//	if true {
+	//Send msg and fetch it's log-entry index.
+	index := rafttype.GetIndex(msg)
+	if debug {
+		log.Println("Log Index for new data is:-", index)
+	}
+	//Below lines are deprecated.
+	/*
+		litem := &Raft.LogItem{Index: index, Term: int64(rafttype.Term()), Data: msg}
+		if debug {
+			log.Println("In handleReq,log-item created is:-", litem)
 		}
-		//Below lines are deprecated.
+		//send log-item to state machine.Below line functionality has been deprecated.
+		//rafttype.Inbox() <- litem
+	*/
+	for {
+		//wait for response.
+		data := <-rafttype.Outbox()
 		/*
-			litem := &Raft.LogItem{Index: index, Term: int64(rafttype.Term()), Data: msg}
-			if debug {
-				log.Println("In handleReq,log-item created is:-", litem)
-			}
-			//send log-item to state machine.Below line functionality has been deprecated.
-			//rafttype.Inbox() <- litem
-		*/
-		for {
-			//wait for response.
-			data := <-rafttype.Outbox()
-			/*
-				if debug{
-					log.Println(reflect.TypeOf(data),*(data.(*int64)),index)
-				}*/
-			//checks whether it the same message which has been replicated successfully.
-			if *(data.(*int64)) == index {
-				break
-			}
+			if debug{
+				log.Println(reflect.TypeOf(data),*(data.(*int64)),index)
+			}*/
+		//checks whether it the same message which has been replicated successfully.
+		if *(data.(*int64)) == index {
+			break
 		}
-//	}
+	}
+	//	}
 }
 
 //This should be called at the start of Key-Value server. This is used for saving into Map after reading the log-entries.
@@ -212,23 +212,23 @@ func ConstructKeyValue(pid *int) {
 	var logitem Raft.LogItem
 	var content Raft.DataType
 
-        temp := make([]byte,8)
-	var i int64;
-	i=0
-                        for{
-                                i++
-                                binary.PutVarint(temp,i)
-                                value,err:=db.Get(temp, nil)
-                                if err!=nil{
-                                        log.Println("Error in Get:-",err)
-                                        break
-                                }
-                                err = json.Unmarshal(value, &logitem) //decode message into Envelope object.
-                                if err!=nil{
-                                        if debug {
-                                                log.Println("In InitServer of Raft,Error during Marshaling:-",err)
-                                        }
-                                }
+	temp := make([]byte, 8)
+	var i int64
+	i = 0
+	for {
+		i++
+		binary.PutVarint(temp, i)
+		value, err := db.Get(temp, nil)
+		if err != nil {
+			log.Println("Error in Get:-", err)
+			break
+		}
+		err = json.Unmarshal(value, &logitem) //decode message into Envelope object.
+		if err != nil {
+			if debug {
+				log.Println("In InitServer of Raft,Error during Marshaling:-", err)
+			}
+		}
 		if debug {
 			log.Println("converted to log-item from bytes:-", logitem)
 		}
@@ -257,13 +257,13 @@ func ConstructKeyValue(pid *int) {
 			}
 		}
 	}
-/*	iter.Release()
-	if iter.Error() != nil {
-		if debug {
-			log.Println("Error during iteration on data of log-entries:-", iter.Error())
+	/*	iter.Release()
+		if iter.Error() != nil {
+			if debug {
+				log.Println("Error during iteration on data of log-entries:-", iter.Error())
+			}
 		}
-	}
-*/
+	*/
 	if debug {
 		PrintMap()
 	}

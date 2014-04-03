@@ -100,44 +100,44 @@ func (ser *Server) PrintDataLog() {
 //This will retrieve msg and create Logitem object then apply it to Log data structure. This is used to ensure that each new log entry has different logindex.
 func (rt *RaftType) GetIndex(msg DataType) int64 {
 	//to ensure that each request have different Index.
-	if debug{
+	if debug {
 		log.Println("In GetIndex method, Message is:-", msg)
 	}
 	rt.serv.ServState.Log[rt.serv.ServState.LastApplied+1] = LogItem{Index: rt.serv.ServState.LastApplied + 1, Term: int64(rt.serv.ServState.my_term), Data: msg}
 	rt.serv.ServState.LastApplied += 1
-/*
-	//Code to send notification that new log-entry received.
-                t_data, err := json.Marshal(rt.serv.ServState.Log[rt.serv.ServState.LastApplied])
-                if err != nil {
-                        if debug {
-                                log.Println("In handleInbox:- Marshaling error: ", err)
-                        }
-                } else {
-                        var envelope cluster.Envelope
-                        data := string(t_data)
-                        // braodcast the requestFor vote.
-                        if rt.serv.ServState.my_state == LEADER { //If it is leader.
-                                envelope = cluster.Envelope{Pid: rt.serv.ServerInfo.Pid(), MsgId: L_I_REQ, Msg: data}
-                        } else if rt.serv.ServState.my_state == CANDIDATE {
-                        } else {
-                                envelope = cluster.Envelope{Pid: rt.serv.ServState.vote_for, MsgId: L_I_REQ, Msg: data}
-                        }
-                        rt.serv.ServerInfo.Inbox() <- &envelope
-                }
-	//
-*/
+	/*
+	   	//Code to send notification that new log-entry received.
+	                   t_data, err := json.Marshal(rt.serv.ServState.Log[rt.serv.ServState.LastApplied])
+	                   if err != nil {
+	                           if debug {
+	                                   log.Println("In handleInbox:- Marshaling error: ", err)
+	                           }
+	                   } else {
+	                           var envelope cluster.Envelope
+	                           data := string(t_data)
+	                           // braodcast the requestFor vote.
+	                           if rt.serv.ServState.my_state == LEADER { //If it is leader.
+	                                   envelope = cluster.Envelope{Pid: rt.serv.ServerInfo.Pid(), MsgId: L_I_REQ, Msg: data}
+	                           } else if rt.serv.ServState.my_state == CANDIDATE {
+	                           } else {
+	                                   envelope = cluster.Envelope{Pid: rt.serv.ServState.vote_for, MsgId: L_I_REQ, Msg: data}
+	                           }
+	                           rt.serv.ServerInfo.Inbox() <- &envelope
+	                   }
+	   	//
+	*/
 	return rt.serv.ServState.LastApplied
 }
 
 //this function has been deprecated. Currently not in use.
 func (raft *RaftType) handleInbox() {
-	if debug{
+	if debug {
 		//log.Println("In inbox")
 	}
 	for {
 		//wait for log entry request. This step can be eliminited because we have already fetched it.
 		req := <-raft.serv.in //Log Item received. and req.Data must be in []byte
-		if debug{
+		if debug {
 			log.Println("New Entry Received in handleInbox:-", req)
 		}
 		t_data, err := json.Marshal(req)
@@ -343,48 +343,48 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 		} else {
 
 			var logitem LogItem
-	                temp := make([]byte,8)
-			var i int64;
-        	        i=0
-	                for{
-	                        i++
-	                        binary.PutVarint(temp,i)
-	                        value,err:=db.Get(temp, nil)
-        	                if err!=nil{
-					log.Println("Error in Get:-",err)
+			temp := make([]byte, 8)
+			var i int64
+			i = 0
+			for {
+				i++
+				binary.PutVarint(temp, i)
+				value, err := db.Get(temp, nil)
+				if err != nil {
+					log.Println("Error in Get:-", err)
 					break
 				}
 				err = json.Unmarshal(value, &logitem) //decode message into Envelope object.
-				if err!=nil{
+				if err != nil {
 					if debug {
-						log.Println("In InitServer of Raft,Error during Marshaling:-",err)
+						log.Println("In InitServer of Raft,Error during Marshaling:-", err)
 					}
 				}
 				serv.ServState.Log[i] = logitem
-	                }
+			}
 			serv.ServState.CommitIndex = i - 1
 			serv.ServState.LastApplied = i - 1
-			if debug{
-				log.Println("LastApplied:-", serv.ServState.LastApplied,"Comiit:-",serv.ServState.CommitIndex,"serv.ServState.Log[int64(len(serv.ServState.Log))].Index:-",serv.ServState.Log[int64(len(serv.ServState.Log))].Index,"serv.ServState.Log[serv.ServState.LastApplied].Term",serv.ServState.Log[serv.ServState.LastApplied].Term)
+			if debug {
+				log.Println("LastApplied:-", serv.ServState.LastApplied, "Comiit:-", serv.ServState.CommitIndex, "serv.ServState.Log[int64(len(serv.ServState.Log))].Index:-", serv.ServState.Log[int64(len(serv.ServState.Log))].Index, "serv.ServState.Log[serv.ServState.LastApplied].Term", serv.ServState.Log[serv.ServState.LastApplied].Term)
 			}
 			/*
-			iter := db.NewIterator(nil, nil)
-			for iter.Next() {
-				// Remember that the contents of the returned slice should not be modified, and
-				// only valid until the next call to Next.
-				//converts []byte to int64
-				serv.ServState.CommitIndex, _ = binary.Varint(iter.Key())
-				err = json.Unmarshal(iter.Value(), &logitem) //decode message into Envelope object.
-				if err!=nil{
-					if debug {
-						log.Println("In InitServer of Raft,Error during Marshaling:-",err)
+				iter := db.NewIterator(nil, nil)
+				for iter.Next() {
+					// Remember that the contents of the returned slice should not be modified, and
+					// only valid until the next call to Next.
+					//converts []byte to int64
+					serv.ServState.CommitIndex, _ = binary.Varint(iter.Key())
+					err = json.Unmarshal(iter.Value(), &logitem) //decode message into Envelope object.
+					if err!=nil{
+						if debug {
+							log.Println("In InitServer of Raft,Error during Marshaling:-",err)
+						}
 					}
+					serv.ServState.Log[serv.ServState.CommitIndex] = logitem
 				}
-				serv.ServState.Log[serv.ServState.CommitIndex] = logitem
-			}
-			serv.ServState.LastApplied = serv.ServState.CommitIndex
-			iter.Release()
-			//log.Println("Error if:-", iter.Error(), serv.ServState.LastApplied)
+				serv.ServState.LastApplied = serv.ServState.CommitIndex
+				iter.Release()
+				//log.Println("Error if:-", iter.Error(), serv.ServState.LastApplied)
 			*/
 		}
 		if debug {
@@ -401,7 +401,7 @@ func InitServer(pid int, file string, dbg bool) (bool, *RaftType) {
 func (serv *Server) start() {
 	var mutex = &sync.Mutex{}
 	for {
-		if debug{
+		if debug {
 			//log.Println("Inside of for loop of start method ")
 		}
 
@@ -429,7 +429,7 @@ func (serv *Server) start() {
 
 //Server goes to Follower state.
 func (serv *Server) StateFollower(mutex *sync.Mutex) {
-	duration := 750*time.Millisecond + time.Duration(rand.Intn(300))*time.Millisecond
+	duration := 500*time.Millisecond + time.Duration(rand.Intn(600))*time.Millisecond
 	/*	if serv.ServerInfo.MyPid == 1 {
 			duration = 500 * time.Millisecond
 		}
@@ -451,14 +451,14 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 			}
 			//fmt.Println("Follower : Serverid-", serv.ServerInfo.MyPid, " Request is:-.", req)
 
-			if debug{
-				log.Println("In follower:-",req.LastLogIndex ,">=" ,serv.ServState.LastApplied," &&", req.Term," > ",serv.Cur_Term() ,"&&" ,req.LastLogTerm ,">=", serv.ServState.Log[serv.ServState.LastApplied].Term);
-				log.Println("In follower:- !(",enve.Pid ,"==", serv.Vote() ,"&&", req.Term ,"==", serv.Cur_Term(),")");
+			if debug {
+				log.Println("In follower:-", req.LastLogIndex, ">=", serv.ServState.LastApplied, " &&", req.Term, " > ", serv.Cur_Term(), "&&", req.LastLogTerm, ">=", serv.ServState.Log[serv.ServState.LastApplied].Term)
+				log.Println("In follower:- !(", enve.Pid, "==", serv.Vote(), "&&", req.Term, "==", serv.Cur_Term(), ")")
 			}
 
 			if req.Term < serv.Cur_Term() {
 				/*
-				*/
+				 */
 			} else if req.LastLogIndex >= serv.ServState.LastApplied && req.Term > serv.Cur_Term() && req.LastLogTerm >= serv.ServState.Log[serv.ServState.LastApplied].Term {
 				//higher term received, reset timer,send accept for request.
 				timer.Reset(duration) //reset timer
@@ -574,57 +574,57 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 			}
 			if debug {
 				//log.Println("Append entry Recvd for ", "sid-", serv.ServerInfo.MyPid, "from", enve.Pid, app, serv.ServState.Log, serv.ServState.LastApplied, serv.ServState.CommitIndex)
-				log.Println("=== New entry:-",app)
+				log.Println("=== New entry:-", app)
 			}
 			// send positive reply.
 			var reply *AE_Reply
 			//new  logic starts
-			if app.PrevLogIndex==0 && app.PrevLogTerm==0 {
-				log.Println("===========First entry came:-",app)
-                                serv.ServState.Log[1] = app.Entries
-                                serv.ServState.LastApplied = 1
-                                //serv.ServState.CommitIndex = app.LeaderCommitIndex
-                                //t_data, err := json.Marshal(serv.ServState.LastApplied)
-                                t_data := make([]byte, 8)
-                                binary.PutVarint(t_data, serv.ServState.LastApplied)
-                                t_data1, err := json.Marshal(app.Entries)
-                                if err != nil && debug {
-                                        log.Println("In Follwer:APP:-", err)
-                                }
-                                err = db.Put(t_data, t_data1, nil) //writting to database.
-                                if err != nil {
+			if app.PrevLogIndex == 0 && app.PrevLogTerm == 0 {
+				log.Println("===========First entry came:-", app)
+				serv.ServState.Log[1] = app.Entries
+				serv.ServState.LastApplied = 1
+				//serv.ServState.CommitIndex = app.LeaderCommitIndex
+				//t_data, err := json.Marshal(serv.ServState.LastApplied)
+				t_data := make([]byte, 8)
+				binary.PutVarint(t_data, serv.ServState.LastApplied)
+				t_data1, err := json.Marshal(app.Entries)
+				if err != nil && debug {
+					log.Println("In Follwer:APP:-", err)
+				}
+				err = db.Put(t_data, t_data1, nil) //writting to database.
+				if err != nil {
 					if debug {
-                        	                log.Println("In Follwer:APP writing to db error.:-", err)
+						log.Println("In Follwer:APP writing to db error.:-", err)
 					}
-                                }
-                                reply = &AE_Reply{Term: app.Term, Success: true, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied + 1}
+				}
+				reply = &AE_Reply{Term: app.Term, Success: true, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied + 1}
 
-			}else if app.Term < serv.ServState.my_term {
+			} else if app.Term < serv.ServState.my_term {
 				//discard msg since it is of no use.
-			}else if serv.ServState.Log[serv.ServState.LastApplied].Term != app.PrevLogTerm || serv.ServState.LastApplied !=app.PrevLogIndex {
+			} else if serv.ServState.Log[serv.ServState.LastApplied].Term != app.PrevLogTerm || serv.ServState.LastApplied != app.PrevLogIndex {
 				if serv.ServState.LastApplied != app.PrevLogIndex {
 					if debug {
-						log.Println("Unmatched Append entry Recvd for ", serv.ServState.Log[serv.ServState.LastApplied].Term,"!=",app.PrevLogTerm ,"OR",serv.ServState.LastApplied,"!=",app.PrevLogIndex)
+						log.Println("Unmatched Append entry Recvd for ", serv.ServState.Log[serv.ServState.LastApplied].Term, "!=", app.PrevLogTerm, "OR", serv.ServState.LastApplied, "!=", app.PrevLogIndex)
 					}
-					reply = &AE_Reply{Term: app.Term, Success: false, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied+1}
+					reply = &AE_Reply{Term: app.Term, Success: false, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied + 1}
 					if debug {
-						log.Println("Unmatched Append entry Recvd for ", "received.PrevLogIndex:-", app.PrevLogIndex, "LastApplied:-", serv.ServState.LastApplied, serv.ServState.CommitIndex,"Expected:-",reply.ExpectedIndex)
+						log.Println("Unmatched Append entry Recvd for ", "received.PrevLogIndex:-", app.PrevLogIndex, "LastApplied:-", serv.ServState.LastApplied, serv.ServState.CommitIndex, "Expected:-", reply.ExpectedIndex)
 					}
 
-				}else{//less than
+				} else { //less than
 					if debug {
-						log.Println("Unmatched Append entry Recvd for ", serv.ServState.Log[serv.ServState.LastApplied].Term,"!=",app.PrevLogTerm ,"OR",serv.ServState.LastApplied,"!=",app.PrevLogIndex)
+						log.Println("Unmatched Append entry Recvd for ", serv.ServState.Log[serv.ServState.LastApplied].Term, "!=", app.PrevLogTerm, "OR", serv.ServState.LastApplied, "!=", app.PrevLogIndex)
 					}
 					_, exist := serv.ServState.Log[serv.ServState.LastApplied-1]
 					if exist {
-						if debug{
+						if debug {
 							log.Println("Server Data", serv.ServState.Log, serv.ServState.LastApplied, serv.ServState.CommitIndex)
 						}
 						serv.ServState.LastApplied -= 1
 					}
-					reply = &AE_Reply{Term: app.Term, Success: false, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied+1}
+					reply = &AE_Reply{Term: app.Term, Success: false, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied + 1}
 					if debug {
-						log.Println("Unmatched Append entry Recvd for ", "received.PrevLogIndex:-", app.PrevLogIndex, "LastApplied:-", serv.ServState.LastApplied, serv.ServState.CommitIndex,"Expected:-",reply.ExpectedIndex)
+						log.Println("Unmatched Append entry Recvd for ", "received.PrevLogIndex:-", app.PrevLogIndex, "LastApplied:-", serv.ServState.LastApplied, serv.ServState.CommitIndex, "Expected:-", reply.ExpectedIndex)
 					}
 				}
 			} else {
@@ -645,7 +645,7 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 				}
 				reply = &AE_Reply{Term: app.Term, Success: true, PrevLogIndex: app.PrevLogIndex, ExpectedIndex: serv.ServState.LastApplied + 1}
 				if debug {
-					log.Println("matched Append entry Recvd for ", "received.PrevLogIndex:-", app.PrevLogIndex, "LastApplied:-", serv.ServState.LastApplied, serv.ServState.CommitIndex,"Expected:-",reply.ExpectedIndex)
+					log.Println("matched Append entry Recvd for ", "received.PrevLogIndex:-", app.PrevLogIndex, "LastApplied:-", serv.ServState.LastApplied, serv.ServState.CommitIndex, "Expected:-", reply.ExpectedIndex)
 				}
 			}
 			// new logic ends
@@ -703,7 +703,7 @@ func (serv *Server) StateFollower(mutex *sync.Mutex) {
 	case <-timer.C:
 
 		if debug {
-			log.Println("Timeout for:-", serv.ServerInfo.MyPid,"Duration was:-",duration)
+			log.Println("Timeout for:-", serv.ServerInfo.MyPid, "Duration was:-", duration)
 		}
 		//declare leader has gone.
 		//RType.Leader = 0
@@ -970,144 +970,144 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 
 	//duration := 1*time.Second + time.Duration(rand.Intn(51))*time.Millisecond//heartbeat timer.
 	duration := 80*time.Millisecond + time.Duration(rand.Intn(51))*time.Millisecond //heartbeat time-duration.
-	timer := time.NewTimer(duration)                                                 //start timer.
-	new_duration:=1*time.Second + duration
-	timer_alive := time.NewTimer(new_duration)                                                 //start timer.
-  for{
-	select { //used for selecting channel for given event.
-	case enve := <-serv.ServerInfo.Inbox():
-		//timer.Reset(duration)
-		log.Println("=====Reset Timer")
-		timer_alive.Reset(new_duration)
-		switch enve.MsgId {
-		case REP:
-			//reply recvd
-			var reply Reply
-			err := json.Unmarshal([]byte(enve.Msg.(string)), &reply)
-			if err != nil {
-				if debug {
-					log.Println("In Leader, Unknown thing happened", enve.Msg.(string))
-				}
-				timer.Stop() //stop timer.
-				timer_alive.Stop() //stop timer.
-				return
-			} else if reply.Term == serv.Cur_Term() {
-				//fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid, "Reply Recvd:-", reply, enve, enve.Msg.(string))
-				if reply.Result { //confirmation received
-					//timer.Reset(duration)
-					serv.ServState.followers[enve.Pid] = enve.Pid
-					if serv.ServState.NextIndex[enve.Pid] == 0 && serv.ServState.MatchIndex[enve.Pid] == 0 {
-						serv.ServState.NextIndex[enve.Pid] = serv.ServState.LastApplied
-						serv.ServState.MatchIndex[enve.Pid] = 0
-					}
+	timer := time.NewTimer(duration)                                                //start timer.
+	new_duration := 1*time.Second + duration
+	timer_alive := time.NewTimer(new_duration) //start timer.
+	for {
+		select { //used for selecting channel for given event.
+		case enve := <-serv.ServerInfo.Inbox():
+			//timer.Reset(duration)
+			log.Println("=====Reset Timer")
+			timer_alive.Reset(new_duration)
+			switch enve.MsgId {
+			case REP:
+				//reply recvd
+				var reply Reply
+				err := json.Unmarshal([]byte(enve.Msg.(string)), &reply)
+				if err != nil {
 					if debug {
-						log.Println("Leader :", serv.ServerInfo.MyPid, "has received confirmation from", enve.Pid, "for term", reply.Term, "and total votes:-", (len(serv.ServState.followers) + 1))
+						log.Println("In Leader, Unknown thing happened", enve.Msg.(string))
 					}
-					//fmt.Println("For",serv.ServerInfo.MyPid,"Confirmation received from",enve.Pid,"total count:-",len(serv.ServState.followers))
+					timer.Stop()       //stop timer.
+					timer_alive.Stop() //stop timer.
+					return
+				} else if reply.Term == serv.Cur_Term() {
+					//fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid, "Reply Recvd:-", reply, enve, enve.Msg.(string))
+					if reply.Result { //confirmation received
+						//timer.Reset(duration)
+						serv.ServState.followers[enve.Pid] = enve.Pid
+						if serv.ServState.NextIndex[enve.Pid] == 0 && serv.ServState.MatchIndex[enve.Pid] == 0 {
+							serv.ServState.NextIndex[enve.Pid] = serv.ServState.LastApplied
+							serv.ServState.MatchIndex[enve.Pid] = 0
+						}
+						if debug {
+							log.Println("Leader :", serv.ServerInfo.MyPid, "has received confirmation from", enve.Pid, "for term", reply.Term, "and total votes:-", (len(serv.ServState.followers) + 1))
+						}
+						//fmt.Println("For",serv.ServerInfo.MyPid,"Confirmation received from",enve.Pid,"total count:-",len(serv.ServState.followers))
+					} else {
+						if debug {
+							log.Println("Leader :", serv.ServerInfo.MyPid, "has received rejection from", enve.Pid, "for term", reply.Term, "and total votes:-", (len(serv.ServState.followers) + 1))
+						}
+						delete(serv.ServState.followers, enve.Pid)
+
+						totalVotes := (len(serv.ServState.followers) + 1)
+						n := int((len(serv.ServerInfo.PeerIds) + 1) / 2)
+						if n >= totalVotes {
+							//RType.Leader = 0
+							timer.Stop()       //stop timer.
+							timer_alive.Stop() //stop timer.
+							mutex.Lock()
+							serv.ServState.UpdateVote_For(0)
+							serv.ServState.UpdateState(0)                //become follower.
+							serv.ServState.followers = make(map[int]int) //clear followers list.
+							mutex.Unlock()
+							return
+						}
+					}
 				} else {
 					if debug {
-						log.Println("Leader :", serv.ServerInfo.MyPid, "has received rejection from", enve.Pid, "for term", reply.Term, "and total votes:-", (len(serv.ServState.followers) + 1))
-					}
-					delete(serv.ServState.followers, enve.Pid)
-
-					totalVotes := (len(serv.ServState.followers) + 1)
-					n := int((len(serv.ServerInfo.PeerIds) + 1) / 2)
-					if n >= totalVotes {
-						//RType.Leader = 0
-						timer.Stop() //stop timer.
-						timer_alive.Stop() //stop timer.
-						mutex.Lock()
-						serv.ServState.UpdateVote_For(0)
-						serv.ServState.UpdateState(0)                //become follower.
-						serv.ServState.followers = make(map[int]int) //clear followers list.
-						mutex.Unlock()
-						return
+						log.Println("Leader :", serv.ServerInfo.MyPid, "has ignored reply from", enve.Pid, "for term", reply.Term, "and total votes:-", (len(serv.ServState.followers) + 1), " and Reply was", reply.Result)
 					}
 				}
-			} else {
-				if debug {
-					log.Println("Leader :", serv.ServerInfo.MyPid, "has ignored reply from", enve.Pid, "for term", reply.Term, "and total votes:-", (len(serv.ServState.followers) + 1), " and Reply was", reply.Result)
-				}
-			}
-			break
-		case REQ:
-			// Request Rcvd.
-			var req Request
-			_ = json.Unmarshal([]byte(enve.Msg.(string)), &req) //decode message into Envelope object.
-			//request received.
-			//fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid, "Request Recvd:-", req, enve)
-			var reply *Reply
-			if req.LastLogIndex >= serv.ServState.LastApplied && req.Term > serv.Cur_Term() && req.LastLogTerm >= serv.ServState.Log[int64(len(serv.ServState.Log))].Term {
-				// getting higher term and it has not voted before.
-				//RType.Leader = 0 //reset leader.
-				if debug {
-					log.Println("Leader(with Term", serv.Cur_Term(), ") :", serv.ServerInfo.MyPid, "has received higher term", req.Term, "from", enve.Pid)
-				}
-				reply = &Reply{Term: req.Term, Result: true}
-				data, err := json.Marshal(reply)
-				if err != nil {
+				break
+			case REQ:
+				// Request Rcvd.
+				var req Request
+				_ = json.Unmarshal([]byte(enve.Msg.(string)), &req) //decode message into Envelope object.
+				//request received.
+				//fmt.Println("Leader : Serverid-", serv.ServerInfo.MyPid, "Request Recvd:-", req, enve)
+				var reply *Reply
+				if req.LastLogIndex >= serv.ServState.LastApplied && req.Term > serv.Cur_Term() && req.LastLogTerm >= serv.ServState.Log[int64(len(serv.ServState.Log))].Term {
+					// getting higher term and it has not voted before.
+					//RType.Leader = 0 //reset leader.
 					if debug {
-						log.Println("In Leader receiving msgs: Marshaling error: ", reply)
+						log.Println("Leader(with Term", serv.Cur_Term(), ") :", serv.ServerInfo.MyPid, "has received higher term", req.Term, "from", enve.Pid)
 					}
-				}
-				timer.Stop() //stop timer.
-				timer_alive.Stop() //stop timer.
-				mutex.Lock()
-				serv.ServState.UpdateState(0) //become follower.
-				serv.ServState.UpdateVote_For(req.CandidateId)
-				serv.ServState.UpdateTerm(req.Term)
-				serv.ServState.followers = make(map[int]int) //clear followers list.
-                		serv.ServState.NextIndex = make(map[int]int64) //clear followers list.
-		                serv.ServState.MatchIndex = make(map[int]int64) //clear followers list.
-				mutex.Unlock()
-				envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: string(data)}
-				serv.ServerInfo.Outbox() <- &envelope
-				//fmt.Println("from:-", serv.ServerInfo.MyPid, "to", enve.Pid, envelope)
-				//serv.ServState.UpdateVote_For(enve.Pid)
-				return
-			} else {
-				reply = &Reply{Term: req.Term, Result: false}
-				data, err := json.Marshal(reply)
-				if err != nil {
+					reply = &Reply{Term: req.Term, Result: true}
+					data, err := json.Marshal(reply)
+					if err != nil {
+						if debug {
+							log.Println("In Leader receiving msgs: Marshaling error: ", reply)
+						}
+					}
+					timer.Stop()       //stop timer.
+					timer_alive.Stop() //stop timer.
+					mutex.Lock()
+					serv.ServState.UpdateState(0) //become follower.
+					serv.ServState.UpdateVote_For(req.CandidateId)
+					serv.ServState.UpdateTerm(req.Term)
+					serv.ServState.followers = make(map[int]int)    //clear followers list.
+					serv.ServState.NextIndex = make(map[int]int64)  //clear followers list.
+					serv.ServState.MatchIndex = make(map[int]int64) //clear followers list.
+					mutex.Unlock()
+					envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: string(data)}
+					serv.ServerInfo.Outbox() <- &envelope
+					//fmt.Println("from:-", serv.ServerInfo.MyPid, "to", enve.Pid, envelope)
+					//serv.ServState.UpdateVote_For(enve.Pid)
+					return
+				} else {
+					reply = &Reply{Term: req.Term, Result: false}
+					data, err := json.Marshal(reply)
+					if err != nil {
+						if debug {
+							log.Println("In Leader receiving msgs: Marshaling error: ", reply)
+						}
+					}
+					envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: string(data)}
+					serv.ServerInfo.Outbox() <- &envelope
 					if debug {
-						log.Println("In Leader receiving msgs: Marshaling error: ", reply)
+						log.Println("Leader(", serv.Cur_Term(), ") :", serv.ServerInfo.MyPid, "has received lesser or equal term req from ", enve.Pid, req.Term)
 					}
-				}
-				envelope := cluster.Envelope{Pid: enve.Pid, MsgId: 1, Msg: string(data)}
-				serv.ServerInfo.Outbox() <- &envelope
-				if debug {
-					log.Println("Leader(", serv.Cur_Term(), ") :", serv.ServerInfo.MyPid, "has received lesser or equal term req from ", enve.Pid, req.Term)
-				}
-				//now send request message and becareful about not to update term.
+					//now send request message and becareful about not to update term.
 
-				x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid(), LastLogIndex: serv.ServState.Log[int64(len(serv.ServState.Log))].Index, LastLogTerm: serv.ServState.Log[int64(len(serv.ServState.Log))].Term}
-				data, err = json.Marshal(x)
-				//fmt.Println("data is:-", x)
-				if err != nil {
+					x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid(), LastLogIndex: serv.ServState.Log[int64(len(serv.ServState.Log))].Index, LastLogTerm: serv.ServState.Log[int64(len(serv.ServState.Log))].Term}
+					data, err = json.Marshal(x)
+					//fmt.Println("data is:-", x)
+					if err != nil {
+						if debug {
+							log.Println("Marshaling error", x)
+						}
+					}
+					// braodcast the requestFor vote.
+					serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: string(data)}
+				}
+
+				break
+
+			case AER:
+				//timer.Reset(duration)
+				//timer.Stop()
+				serv.ServState.followers[enve.Pid] = enve.Pid
+				var aer AE_Reply
+				err := json.Unmarshal([]byte(enve.Msg.(string)), &aer) //decode message into Envelope object.
+				if err != nil {                                        //error into parsing/decoding
 					if debug {
-						log.Println("Marshaling error", x)
+						log.Println("Follower,AppendEntries: Unmarshaling error:-\t", err)
 					}
 				}
-				// braodcast the requestFor vote.
-				serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: string(data)}
-			}
-
-			break
-
-		case AER:
-			//timer.Reset(duration)
-			//timer.Stop()
-			serv.ServState.followers[enve.Pid] = enve.Pid
-			var aer AE_Reply
-			err := json.Unmarshal([]byte(enve.Msg.(string)), &aer) //decode message into Envelope object.
-			if err != nil {                                        //error into parsing/decoding
 				if debug {
-					log.Println("Follower,AppendEntries: Unmarshaling error:-\t", err)
+					log.Println("Leader:- Response for AppendEntries received for sid:-", serv.ServerInfo.MyPid, "from", enve.Pid, "data is:-", aer, "PrevLogIndex:-", aer.PrevLogIndex)
 				}
-			}
-			if debug {
-				log.Println("Leader:- Response for AppendEntries received for sid:-", serv.ServerInfo.MyPid, "from", enve.Pid, "data is:-", aer, "PrevLogIndex:-", aer.PrevLogIndex)
-			}
 				serv.ServState.NextIndex[enve.Pid] = aer.ExpectedIndex
 
 				if aer.Success {
@@ -1116,7 +1116,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 					n := int((len(serv.ServerInfo.PeerIds) + 1) / 2)
 					for val, index := range serv.ServState.MatchIndex {
 						if debug {
-							log.Println("In Leader aer.Success:-",val,index,"commitIndex:-",serv.ServState.CommitIndex)
+							log.Println("In Leader aer.Success:-", val, index, "commitIndex:-", serv.ServState.CommitIndex)
 						}
 						if index > serv.ServState.CommitIndex {
 							total++
@@ -1127,13 +1127,13 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 								binary.PutVarint(t_data, serv.ServState.LastApplied)
 								t_data1, err := json.Marshal(serv.ServState.Log[serv.ServState.CommitIndex])
 								if err != nil {
-									if debug{
+									if debug {
 										log.Println("In Leader :AER error in marshaling before writing to db:-", err)
 									}
 								}
 								err = db.Put(t_data, t_data1, nil) //writting to database.
-								if err != nil{
-									if debug{
+								if err != nil {
+									if debug {
 										log.Println("In Leader:AER writing to db error.:-", err)
 									}
 								}
@@ -1144,7 +1144,7 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 						}
 					}
 				}
-			/* //all new messages will be sent on timeout.
+				/* //all new messages will be sent on timeout.
 				_, exist := serv.ServState.Log[aer.ExpectedIndex]
 				if exist {
 					//entry := LogItem{Index: aer.ExpectedIndex, Term: int64(serv.ServState.my_term), Data: serv.ServState.Log[aer.ExpectedIndex]}
@@ -1162,120 +1162,122 @@ func (serv *Server) StateLeader(mutex *sync.Mutex) {
 						log.Println("Leader:- new log entry sent is:-", app, "NextIndex:-", serv.ServState.NextIndex, "MatchIndex", serv.ServState.MatchIndex)
 					}
 				}
+				*/
+				//timer.Reset(duration)
+				break
+				/*
+					case L_I_REQ:
+						log.Println("Leader:- L_I_REQ Request from client received", enve)
+						break
+					default:
+						log.Println("Leader:- default", enve)
+						break
+				*/
+			}
+
+		case logitem := <-serv.in:
+			log.Println("Leader:-logitem received from kv", logitem, "Log:-", serv.ServState.Log)
+			/*
+
 			*/
-			//timer.Reset(duration)
-			break
-/*
-		case L_I_REQ:
-			log.Println("Leader:- L_I_REQ Request from client received", enve)
-			break
-		default:
-			log.Println("Leader:- default", enve)
-			break
-*/
-		}
 
-	case logitem := <-serv.in:
-		log.Println("Leader:-logitem received from kv", logitem, "Log:-", serv.ServState.Log)
-		/*
+		case <-timer_alive.C:
+			log.Println("===== Timer Expire")
+			timer.Stop()       //stop timer.
+			timer_alive.Stop() //stop timer.
+			mutex.Lock()
+			serv.ServState.UpdateState(0) //become follower.
+			serv.ServState.UpdateVote_For(0)
+			serv.ServState.followers = make(map[int]int)    //clear followers list.
+			serv.ServState.NextIndex = make(map[int]int64)  //clear followers list.
+			serv.ServState.MatchIndex = make(map[int]int64) //clear followers list.
+			mutex.Unlock()
+			return
 
-		*/
-
-	case <-timer_alive.C:
-		log.Println("===== Timer Expire")
-		timer.Stop() //stop timer.
-                timer_alive.Stop() //stop timer.
-                mutex.Lock()
-                serv.ServState.UpdateState(0) //become follower.
-                serv.ServState.UpdateVote_For(0)
-                serv.ServState.followers = make(map[int]int) //clear followers list.
-                serv.ServState.NextIndex = make(map[int]int64) //clear followers list.
-                serv.ServState.MatchIndex = make(map[int]int64) //clear followers list.
-                mutex.Unlock()
-		return
-
-
-	case <-timer.C:
-		timer.Reset(duration)
-		//send heartbeat to all servers
-		x := &HeartBeat{Term: serv.Cur_Term(), LeaderId: serv.ServerInfo.Pid()}
-		data, err := json.Marshal(x)
-		if debug {
-			log.Println("Timeout for Leader:-")
-			serv.PrintData()
-		}
-		if err != nil {
-			if debug {
-				log.Println("Marshaling error", x, err)
-			}
-		}
-		// braodcast the requestFor vote.
-
-		//serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: HEART, Msg: string(data)}
-
-		//send Append entry requests to followers
-		for _, pid := range serv.ServState.followers {
-			sent:=false
-			//log.Println("Inloop Timeout for Leader:-", serv.ServerInfo.Pid(), "ServerState is:-", serv.ServState)
-			temp_pid := serv.ServState.NextIndex[pid]
-			if temp_pid == 0 {
-				temp_pid = serv.ServState.LastApplied
-			}
-			_, exist := serv.ServState.Log[temp_pid]
-			if exist {
-				//entry := LogItem{Index: serv.ServState.NextIndex[pid], Term: int64(serv.ServState.my_term), Data: serv.ServState.Log[serv.ServState.NextIndex[pid]]}
-				entry := serv.ServState.Log[temp_pid]
-				app := &AppendEntries{Term: serv.Cur_Term(), LeaderId: serv.ServerInfo.Pid(), PrevLogIndex: serv.ServState.Log[temp_pid-1].Index, PrevLogTerm: serv.ServState.Log[temp_pid-1].Term, Entries: entry, LeaderCommitIndex: serv.ServState.CommitIndex}
-				data, err = json.Marshal(app)
-				if err != nil {
-					if debug {
-						log.Println("Append Entry,Leader, Marshaling error", app, err)
-					}
-				} else {
-					serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: pid, MsgId: APP, Msg: string(data)}
-					sent=true
-					if debug {
-						log.Println("In timeout ,Leader:- new log entry sent is:-", app)
-					}
-				}
-			}
-
-			if !sent{
-				serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: pid, MsgId: HEART, Msg: string(data)}
-				if debug {
-					log.Println("In timeout ,Leader:- heartbeat sent:-")
-				}
-			}
-		}
-
-		serv.ServState.followers = make(map[int]int) //clear followers list.
-
-		/*
-			x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid(),LastLogIndex:serv.ServState.Log[int64(len(serv.ServState.Log))].Index,LastLogTerm:serv.ServState.Log[int64(len(serv.ServState.Log))].Term}
+		case <-timer.C:
+			timer.Reset(duration)
+			//send heartbeat to all servers
+			x := &HeartBeat{Term: serv.Cur_Term(), LeaderId: serv.ServerInfo.Pid()}
 			data, err := json.Marshal(x)
 			if debug {
-				log.Println("Timeout for Leader:-", serv.ServerInfo.Pid(), "Term", serv.Cur_Term())
+				log.Println("Timeout for Leader:-")
+				serv.PrintData()
 			}
 			if err != nil {
 				if debug {
-					log.Println("Marshaling error", x)
+					log.Println("Marshaling error", x, err)
 				}
 			}
 			// braodcast the requestFor vote.
-			serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: string(data)}
-		*/
-		/*
-			for _, pid := range serv.ServState.followers {
-				serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: pid, MsgId: 0, Msg: string(data)}
-			}
-		*/
-		//log.Println("Leader -", serv.ServerInfo.MyPid, " is going for sleep.")
-		//time.Sleep(20 * time.Second)
-		//time.Sleep(time.Duration((rand.Intn(350) + serv.ServerInfo.MyPid*400)) * time.Millisecond) //minimum will be 400ms.
-		//log.Println("Leader -", serv.ServerInfo.MyPid, " has awaken from sleep.")
 
+			//serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: HEART, Msg: string(data)}
+
+			//send Append entry requests to followers
+			for _, pid := range serv.ServState.followers {
+				sent := false
+				//log.Println("Inloop Timeout for Leader:-", serv.ServerInfo.Pid(), "ServerState is:-", serv.ServState)
+				temp_pid := serv.ServState.NextIndex[pid]
+				if temp_pid == 0 {
+					temp_pid = serv.ServState.LastApplied
+				}
+				_, exist := serv.ServState.Log[temp_pid]
+				if exist {
+					if debug {
+						log.Println("Leader, temp_pid:-", temp_pid, "serv.ServState.Log[temp_pid-1]", serv.ServState.Log[temp_pid-1])
+					}
+					//entry := LogItem{Index: serv.ServState.NextIndex[pid], Term: int64(serv.ServState.my_term), Data: serv.ServState.Log[serv.ServState.NextIndex[pid]]}
+					entry := serv.ServState.Log[temp_pid]
+					app := &AppendEntries{Term: serv.Cur_Term(), LeaderId: serv.ServerInfo.Pid(), PrevLogIndex: serv.ServState.Log[temp_pid-1].Index, PrevLogTerm: serv.ServState.Log[temp_pid-1].Term, Entries: entry, LeaderCommitIndex: serv.ServState.CommitIndex}
+					data, err = json.Marshal(app)
+					if err != nil {
+						if debug {
+							log.Println("Append Entry,Leader, Marshaling error", app, err)
+						}
+					} else {
+						serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: pid, MsgId: APP, Msg: string(data)}
+						sent = true
+						if debug {
+							log.Println("In timeout ,Leader:- new log entry sent is:-", app)
+						}
+					}
+				}
+
+				if !sent {
+					serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: pid, MsgId: HEART, Msg: string(data)}
+					if debug {
+						log.Println("In timeout ,Leader:- heartbeat sent:-")
+					}
+				}
+			}
+
+			serv.ServState.followers = make(map[int]int) //clear followers list.
+
+			/*
+				x := &Request{Term: serv.Cur_Term(), CandidateId: serv.ServerInfo.Pid(),LastLogIndex:serv.ServState.Log[int64(len(serv.ServState.Log))].Index,LastLogTerm:serv.ServState.Log[int64(len(serv.ServState.Log))].Term}
+				data, err := json.Marshal(x)
+				if debug {
+					log.Println("Timeout for Leader:-", serv.ServerInfo.Pid(), "Term", serv.Cur_Term())
+				}
+				if err != nil {
+					if debug {
+						log.Println("Marshaling error", x)
+					}
+				}
+				// braodcast the requestFor vote.
+				serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: cluster.BROADCAST, MsgId: 0, Msg: string(data)}
+			*/
+			/*
+				for _, pid := range serv.ServState.followers {
+					serv.ServerInfo.Outbox() <- &cluster.Envelope{Pid: pid, MsgId: 0, Msg: string(data)}
+				}
+			*/
+			//log.Println("Leader -", serv.ServerInfo.MyPid, " is going for sleep.")
+			//time.Sleep(20 * time.Second)
+			//time.Sleep(time.Duration((rand.Intn(350) + serv.ServerInfo.MyPid*400)) * time.Millisecond) //minimum will be 400ms.
+			//log.Println("Leader -", serv.ServerInfo.MyPid, " has awaken from sleep.")
+
+		}
 	}
-  }
 	if debug {
 		log.Println("Leader ouside switch")
 	}
