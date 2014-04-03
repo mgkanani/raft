@@ -159,7 +159,7 @@ func killProc(wg *sync.WaitGroup) {
 					}
 					cmd[i].Process.Kill()
 					//cmd[i].Process.Wait()
-					time.Sleep(15 * time.Second)
+					time.Sleep(10 * time.Second)
 					temp := &exec.Cmd{Path: cmd[i].Path, Args: cmd[i].Args, Stdout: cmd[i].Stdout, Stderr: cmd[i].Stderr}
 					delete(cmd, i)
 					cmd[i] = temp
