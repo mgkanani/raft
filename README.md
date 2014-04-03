@@ -25,6 +25,7 @@ go get github.com/mgkanani/raft
 go install github.com/mgkanani/raft                ->raft implementation code
 go install github.com/mgkanani/raft/KeyValue           ->KeyValue Server code
 go install github.com/mgkanani/raft/KeyValue/client             -> client for KeyValue.
+go install github.com/mgkanani/raft/leveldb_check   -> This is used in testing of KeyValue also.
 ```
 
 
@@ -35,6 +36,12 @@ go install github.com/mgkanani/raft/RaftMain  ->This is used in during testing o
 go test github.com/mgkanani/raft
 ```
 
+To test KeyValue go into KeyValue Directory and execute commands in below order.
+```
+go install
+go test
+./test_script.sh   -> Output in all line must be same.
+```
 
 ## Tests performed:-
 -Tests are performed on 3-different machines(From 7 servers 2,2,3 servers on respective machines) for testing the working of Raft.
